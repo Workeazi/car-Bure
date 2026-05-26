@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'home_screen.dart';
+import 'admin_features/admin_homePage.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -104,6 +105,7 @@ class _LoginPageState extends State<LoginPage> {
         bool passwordMatched = false;
         String userPermissions = '';
         String userAccessPermissions = '';
+        String matchedEmployeeId = '';
 
         for (int i = 0; i < lines.length; i++) {
           final line = lines[i];
@@ -118,6 +120,7 @@ class _LoginPageState extends State<LoginPage> {
               userFound = true;
               if (cellPassword == password) {
                 passwordMatched = true;
+                matchedEmployeeId = cellEmployeeId;
                 if (columns.length > 5) {
                   userPermissions = columns[5].trim();
                 }
@@ -136,16 +139,25 @@ class _LoginPageState extends State<LoginPage> {
           _showErrorDialog('Login Failed', 'Incorrect password.');
         } else {
           if (mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => HomeScreen(
-                  loginId: loginId,
-                  permissions: userPermissions,
-                  accessPermissions: userAccessPermissions,
+            if (matchedEmployeeId.toUpperCase() == 'ADMIN001') {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AdminHomePage(),
                 ),
-              ),
-            );
+              );
+            } else {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => HomeScreen(
+                    loginId: loginId,
+                    permissions: userPermissions,
+                    accessPermissions: userAccessPermissions,
+                  ),
+                ),
+              );
+            }
           }
         }
       } else {
