@@ -1,6 +1,7 @@
 // ignore_for_file: file_names
 import 'package:flutter/material.dart';
 import '../login_page.dart';
+import 'user_permissions_screen.dart';
 
 class AdminHomePage extends StatelessWidget {
   const AdminHomePage({super.key});
@@ -165,7 +166,14 @@ class AdminHomePage extends StatelessWidget {
               title: 'User Permissions',
               subtitle: 'Manage user sheets access & edit privileges',
               color: const Color(0xFF667EEA),
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const UserPermissionsScreen(),
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 12),
             _buildFeatureCard(

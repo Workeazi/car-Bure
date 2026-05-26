@@ -270,4 +270,138 @@ class GoogleSheetsService {
     }
     return letter;
   }
+
+  static Future<String> _getSheet2Name(sheets.SheetsApi sheetsApi) async {
+    try {
+      final response = await sheetsApi.spreadsheets.get(spreadsheetId);
+      final sheetsList = response.sheets;
+      if (sheetsList != null) {
+        for (final sheet in sheetsList) {
+          if (sheet.properties?.sheetId == 751895921) {
+            return sheet.properties?.title ?? 'Sheet2';
+          }
+        }
+      }
+    } catch (_) {}
+    return 'Sheet2';
+  }
+
+  static Future<List<Map<String, String>>?> fetchSheet2Data() async {
+    try {
+      final sheetsApi = await _getSheetsApi();
+      final sheet2Name = await _getSheet2Name(sheetsApi);
+      final response = await sheetsApi.spreadsheets.values.get(spreadsheetId, '$sheet2Name!A:Z');
+      final rows = response.values;
+      if (rows == null || rows.isEmpty) {
+        return [];
+      }
+
+      int headerRowIndex = -1;
+      for (int i = 0; i < rows.length; i++) {
+        if (rows[i].isNotEmpty && rows[i][0].toString().toLowerCase().trim() == 'employee id') {
+          headerRowIndex = i;
+          break;
+        }
+      }
+
+      if (headerRowIndex == -1) {
+        for (int i = 0; i < rows.length; i++) {
+          if (rows[i].isNotEmpty && rows[i][0].toString().toLowerCase().contains('employee')) {
+            headerRowIndex = i;
+            break;
+          }
+        }
+      }
+
+      if (headerRowIndex == -1) {
+        headerRowIndex = 0;
+      }
+
+      final headers = rows[headerRowIndex].map((h) => h.toString().trim()).toList();
+      List<Map<String, String>> parsedData = [];
+
+      for (int i = headerRowIndex + 1; i < rows.length; i++) {
+        final row = rows[i];
+        if (row.isNotEmpty && row[0].toString().trim().isNotEmpty) {
+          final rowData = <String, String>{};
+          for (int j = 0; j < row.length && j < headers.length; j++) {
+            rowData[headers[j]] = row[j].toString().trim();
+          }
+          parsedData.add(rowData);
+        }
+      }
+      return parsedData;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  static Future<String?> updateSheet2Row({
+    required String employeeId,
+    required Map<String, String> updates,
+  }) async {
+    try {
+      final sheetsApi = await _getSheetsApi();
+      final sheet2Name = await _getSheet2Name(sheetsApi);
+      
+      final response = await sheetsApi.spreadsheets.values.get(spreadsheetId, '$sheet2Name!A:Z');
+      final rows = response.values;
+      if (rows == null || rows.isEmpty) {
+        return 'The sheet is empty or could not be loaded.';
+      }
+
+      int headerRowIndex = -1;
+      for (int i = 0; i < rows.length; i++) {
+        if (rows[i].isNotEmpty && rows[i][0].toString().toLowerCase().trim() == 'employee id') {
+          headerRowIndex = i;
+          break;
+        }
+      }
+      if (headerRowIndex == -1) {
+        headerRowIndex = 0;
+      }
+
+      final headers = rows[headerRowIndex].map((h) => h.toString().toLowerCase().trim()).toList();
+      
+      final empIdColIndex = headers.indexOf('employee id');
+      if (empIdColIndex == -1) {
+        return 'Column "Employee ID" not found in sheet headers.';
+      }
+
+      int targetRowIndex = -1;
+      for (int i = headerRowIndex + 1; i < rows.length; i++) {
+        final row = rows[i];
+        if (row.length > empIdColIndex && row[empIdColIndex].toString().trim().toLowerCase() == employeeId.trim().toLowerCase()) {
+          targetRowIndex = i;
+          break;
+        }
+      }
+
+      if (targetRowIndex == -1) {
+        return 'Row with Employee ID "$employeeId" not found in the sheet.';
+      }
+
+      final sheetRowNumber = targetRowIndex + 1;
+
+      for (final col in updates.keys) {
+        final colIndex = headers.indexOf(col.toLowerCase().trim());
+        if (colIndex != -1) {
+          final colLetter = _getColLetter(colIndex);
+          final valueRange = sheets.ValueRange(
+            values: [[updates[col]]],
+          );
+          
+          await sheetsApi.spreadsheets.values.update(
+            valueRange,
+            spreadsheetId,
+            '$sheet2Name!$colLetter$sheetRowNumber',
+            valueInputOption: 'USER_ENTERED',
+          );
+        }
+      }
+      return null;
+    } catch (e) {
+      return 'Google Sheets API error: $e';
+    }
+  }
 }
