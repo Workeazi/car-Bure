@@ -72,9 +72,21 @@ class AdminHomePage extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
-        title: const Text(
-          'Admin Console',
-          style: TextStyle(fontWeight: FontWeight.bold),
+        title: Row(
+          children: [
+            Image.asset(
+              'assets/logo.png',
+              height: 28,
+            ),
+            const SizedBox(width: 8),
+            const Text(
+              'Admin Console',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
+            ),
+          ],
         ),
         backgroundColor: Colors.white,
         elevation: 0,

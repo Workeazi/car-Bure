@@ -283,10 +283,24 @@ class _LoginPageState extends State<LoginPage> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Icon(
-                    Icons.admin_panel_settings_outlined,
-                    size: 80,
-                    color: Colors.white,
+                  Center(
+                    child: Container(
+                      width: 90,
+                      height: 90,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.1),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      padding: const EdgeInsets.all(12),
+                      child: Image.asset('assets/logo.png'),
+                    ),
                   ),
                   const SizedBox(height: 24),
                   const Text(

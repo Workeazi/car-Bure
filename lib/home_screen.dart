@@ -970,7 +970,22 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Dashboard', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Row(
+          children: [
+            Image.asset(
+              'assets/logo.png',
+              height: 28,
+            ),
+            const SizedBox(width: 8),
+            const Text(
+              'Dashboard',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+              ),
+            ),
+          ],
+        ),
         backgroundColor: const Color(0xFFF8F9FA),
         elevation: 0,
         scrolledUnderElevation: 0,
