@@ -167,7 +167,14 @@ class _LoginPageState extends State<LoginPage> {
         );
       }
     } catch (e) {
-      _showErrorDialog('Error', 'An unexpected error occurred.', e.toString());
+      if (e.toString().contains('SocketException') || e.toString().contains('Failed host lookup')) {
+        _showErrorDialog(
+          'Connection Error',
+          'No internet connection. Please verify your Wi-Fi or mobile data and try again.',
+        );
+      } else {
+        _showErrorDialog('Error', 'An unexpected error occurred.', e.toString());
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -254,7 +261,14 @@ class _LoginPageState extends State<LoginPage> {
         );
       }
     } catch (e) {
-      _showErrorDialog('Error', 'An unexpected error occurred.', e.toString());
+      if (e.toString().contains('SocketException') || e.toString().contains('Failed host lookup')) {
+        _showErrorDialog(
+          'Connection Error',
+          'No internet connection. Please verify your Wi-Fi or mobile data and try again.',
+        );
+      } else {
+        _showErrorDialog('Error', 'An unexpected error occurred.', e.toString());
+      }
     } finally {
       if (mounted) {
         setState(() {
