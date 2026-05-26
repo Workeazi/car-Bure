@@ -2,6 +2,9 @@
 import 'package:flutter/material.dart';
 import '../login_page.dart';
 import 'user_permissions_screen.dart';
+import 'spreadsheet_settings_screen.dart';
+import 'activity_logs_screen.dart';
+import 'security_settings_screen.dart';
 
 class AdminHomePage extends StatelessWidget {
   const AdminHomePage({super.key});
@@ -181,7 +184,14 @@ class AdminHomePage extends StatelessWidget {
               title: 'Spreadsheet Settings',
               subtitle: 'Configure worksheet mappings and connections',
               color: Colors.teal,
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const SpreadsheetSettingsScreen(),
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 12),
             _buildFeatureCard(
@@ -189,7 +199,14 @@ class AdminHomePage extends StatelessWidget {
               title: 'Activity Logs',
               subtitle: 'Monitor system events and modification logs',
               color: Colors.orange,
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ActivityLogsScreen(),
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 12),
             _buildFeatureCard(
@@ -197,7 +214,14 @@ class AdminHomePage extends StatelessWidget {
               title: 'Security Settings',
               subtitle: 'Update passwords and system credentials',
               color: Colors.redAccent,
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const SecuritySettingsScreen(),
+                  ),
+                );
+              },
             ),
           ],
         ),

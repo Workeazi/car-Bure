@@ -4,7 +4,7 @@ import 'package:googleapis/sheets/v4.dart' as sheets;
 import 'package:googleapis_auth/auth_io.dart';
 
 class GoogleSheetsService {
-  static const String spreadsheetId = '1lkImcQTYrsKBc4eafO6AOyRqlqhXTXnn40gYb4B5jzM';
+  static String spreadsheetId = '1lkImcQTYrsKBc4eafO6AOyRqlqhXTXnn40gYb4B5jzM';
 
   static Future<sheets.SheetsApi> _getSheetsApi() async {
     final credentialsJson = await rootBundle.loadString('assets/google-sheets-credentials.json');
