@@ -12,7 +12,6 @@ class _UserPermissionsScreenState extends State<UserPermissionsScreen> {
   bool _isLoading = true;
   List<Map<String, String>> _usersList = [];
 
-  // All known columns in Sheet1 for granular configuration
   final List<String> _allPossibleColumns = [
     'Date',
     'IV NO',
@@ -47,7 +46,7 @@ class _UserPermissionsScreenState extends State<UserPermissionsScreen> {
         });
       } else {
         setState(() => _isLoading = false);
-        _showSnackBar('Failed to fetch user permissions.');
+        _showSnackBar('Failed to load users.');
       }
     } catch (e) {
       setState(() => _isLoading = false);
@@ -59,15 +58,15 @@ class _UserPermissionsScreenState extends State<UserPermissionsScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Text(message, style: const TextStyle(fontSize: 14)),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        backgroundColor: Colors.black87,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
 
   void _editUserPermissions(Map<String, String> user) {
-    // Parse current column permissions
     final employeeIdKey = user.keys.firstWhere(
       (k) => k.toLowerCase().trim() == 'employee id',
       orElse: () => 'Employee ID',
@@ -85,7 +84,6 @@ class _UserPermissionsScreenState extends State<UserPermissionsScreen> {
         .where((e) => e.isNotEmpty)
         .toList();
 
-    // Parse current access rights
     final accessKey = user.keys.firstWhere(
       (k) => k.toLowerCase().trim() == 'access permissions',
       orElse: () => 'Access Permissions',
@@ -102,7 +100,7 @@ class _UserPermissionsScreenState extends State<UserPermissionsScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) {
         return StatefulBuilder(
@@ -113,45 +111,51 @@ class _UserPermissionsScreenState extends State<UserPermissionsScreen> {
               ),
               child: Container(
                 constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(ctx).size.height * 0.85,
+                  maxHeight: MediaQuery.of(ctx).size.height * 0.8,
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    // Handle Bar
+                    const SizedBox(height: 12),
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
                     // Header
                     Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 16,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          IconButton(
-                            icon: const Icon(Icons.close),
-                            onPressed: () => Navigator.pop(ctx),
-                          ),
                           Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'Edit Permissions',
-                                style: TextStyle(
-                                  fontSize: 18,
+                              Text(
+                                empId,
+                                style: const TextStyle(
+                                  fontSize: 20,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.black87,
                                 ),
                               ),
-                              Text(
-                                'Employee ID: $empId',
-                                style: const TextStyle(
+                              const SizedBox(height: 2),
+                              const Text(
+                                'Manage Access & Columns',
+                                style: TextStyle(
                                   fontSize: 13,
                                   color: Colors.grey,
-                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
                             ],
                           ),
-                          TextButton(
+                          ElevatedButton(
                             onPressed: () async {
                               Navigator.pop(ctx);
                               await _savePermissions(
@@ -160,120 +164,132 @@ class _UserPermissionsScreenState extends State<UserPermissionsScreen> {
                                 selectedAccessRights.join(', '),
                               );
                             },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.black,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                                vertical: 10,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
                             child: const Text(
                               'Save',
                               style: TextStyle(
-                                fontSize: 16,
                                 fontWeight: FontWeight.bold,
-                                color: Color(0xFF667EEA),
+                                fontSize: 14,
                               ),
                             ),
                           ),
                         ],
                       ),
                     ),
+                    const SizedBox(height: 20),
                     const Divider(height: 1),
 
-                    // Body
+                    // Content Scroll
                     Expanded(
                       child: ListView(
-                        padding: const EdgeInsets.all(20),
+                        padding: const EdgeInsets.all(24),
                         children: [
-                          // Access rights section
+                          // Access Rights Section
                           const Text(
                             'ACCESS RIGHTS',
                             style: TextStyle(
-                              fontSize: 13,
+                              fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF667EEA),
-                              letterSpacing: 1.2,
+                              color: Colors.grey,
+                              letterSpacing: 1.1,
                             ),
                           ),
-                          const SizedBox(height: 10),
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade50,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.grey.shade200),
-                            ),
-                            child: Column(
-                              children: _allAccessRights.map((right) {
-                                final isChecked = selectedAccessRights.any(
-                                  (r) => r.toLowerCase() == right.toLowerCase(),
-                                );
-                                return CheckboxListTile(
-                                  title: Text(
-                                    right,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 15,
-                                    ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 10,
+                            children: _allAccessRights.map((right) {
+                              final isSelected = selectedAccessRights.any(
+                                (r) => r.toLowerCase() == right.toLowerCase(),
+                              );
+                              return ChoiceChip(
+                                label: Text(right),
+                                selected: isSelected,
+                                selectedColor: Colors.black87,
+                                backgroundColor: const Color(0xFFF3F4F6),
+                                labelStyle: TextStyle(
+                                  color: isSelected ? Colors.white : Colors.black87,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  side: BorderSide(
+                                    color: isSelected ? Colors.black87 : Colors.grey.shade200,
                                   ),
-                                  value: isChecked,
-                                  activeColor: const Color(0xFF667EEA),
-                                  onChanged: (val) {
-                                    setModalState(() {
-                                      if (val == true) {
-                                        selectedAccessRights.add(right);
-                                      } else {
-                                        selectedAccessRights.removeWhere(
-                                          (r) => r.toLowerCase() == right.toLowerCase(),
-                                        );
-                                      }
-                                    });
-                                  },
-                                );
-                              }).toList(),
-                            ),
+                                ),
+                                onSelected: (selected) {
+                                  setModalState(() {
+                                    if (selected) {
+                                      selectedAccessRights.add(right);
+                                    } else {
+                                      selectedAccessRights.removeWhere(
+                                        (r) => r.toLowerCase() == right.toLowerCase(),
+                                      );
+                                    }
+                                  });
+                                },
+                              );
+                            }).toList(),
                           ),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 32),
 
-                          // Column permissions section
+                          // Column Permissions Section
                           const Text(
-                            'ALLOWED SHEET COLUMNS',
+                            'ALLOWED COLUMNS',
                             style: TextStyle(
-                              fontSize: 13,
+                              fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF667EEA),
-                              letterSpacing: 1.2,
+                              color: Colors.grey,
+                              letterSpacing: 1.1,
                             ),
                           ),
-                          const SizedBox(height: 10),
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade50,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.grey.shade200),
-                            ),
-                            child: Column(
-                              children: _allPossibleColumns.map((col) {
-                                final isChecked = selectedColumns.any(
-                                  (c) => c.toLowerCase() == col.toLowerCase(),
-                                );
-                                return CheckboxListTile(
-                                  title: Text(
-                                    col,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 15,
-                                    ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 10,
+                            children: _allPossibleColumns.map((col) {
+                              final isSelected = selectedColumns.any(
+                                (c) => c.toLowerCase() == col.toLowerCase(),
+                              );
+                              return ChoiceChip(
+                                label: Text(col),
+                                selected: isSelected,
+                                selectedColor: Colors.black87,
+                                backgroundColor: const Color(0xFFF3F4F6),
+                                labelStyle: TextStyle(
+                                  color: isSelected ? Colors.white : Colors.black87,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  side: BorderSide(
+                                    color: isSelected ? Colors.black87 : Colors.grey.shade200,
                                   ),
-                                  value: isChecked,
-                                  activeColor: const Color(0xFF667EEA),
-                                  onChanged: (val) {
-                                    setModalState(() {
-                                      if (val == true) {
-                                        selectedColumns.add(col);
-                                      } else {
-                                        selectedColumns.removeWhere(
-                                          (c) => c.toLowerCase() == col.toLowerCase(),
-                                        );
-                                      }
-                                    });
-                                  },
-                                );
-                              }).toList(),
-                            ),
+                                ),
+                                onSelected: (selected) {
+                                  setModalState(() {
+                                    if (selected) {
+                                      selectedColumns.add(col);
+                                    } else {
+                                      selectedColumns.removeWhere(
+                                        (c) => c.toLowerCase() == col.toLowerCase(),
+                                      );
+                                    }
+                                  });
+                                },
+                              );
+                            }).toList(),
                           ),
                         ],
                       ),
@@ -304,11 +320,11 @@ class _UserPermissionsScreenState extends State<UserPermissionsScreen> {
       );
 
       if (error == null) {
-        _showSnackBar('Permissions updated successfully!');
+        _showSnackBar('Permissions updated.');
         await _fetchUsers();
       } else {
         setState(() => _isLoading = false);
-        _showSnackBar('Failed to update: $error');
+        _showSnackBar('Failed to save: $error');
       }
     } catch (e) {
       setState(() => _isLoading = false);
@@ -319,36 +335,43 @@ class _UserPermissionsScreenState extends State<UserPermissionsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text(
-          'User Permissions',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          'Users',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+            fontSize: 20,
+          ),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87, size: 20),
+          onPressed: () => Navigator.pop(context),
         ),
         backgroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1.0),
-          child: Container(
-            color: Colors.grey.shade200,
-            height: 1.0,
-          ),
-        ),
       ),
       body: SafeArea(
         child: _isLoading
             ? const Center(
                 child: CircularProgressIndicator(
-                  color: Color(0xFF667EEA),
+                  color: Colors.black,
+                  strokeWidth: 2,
                 ),
               )
             : RefreshIndicator(
                 onRefresh: _fetchUsers,
-                color: const Color(0xFF667EEA),
-                child: ListView.builder(
-                  padding: const EdgeInsets.all(16),
+                color: Colors.black,
+                child: ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                   itemCount: _usersList.length,
+                  separatorBuilder: (context, index) => const Divider(
+                    height: 32,
+                    thickness: 0.8,
+                    color: Color(0xFFF3F4F6),
+                  ),
                   itemBuilder: (context, index) {
                     final user = _usersList[index];
                     final empIdKey = user.keys.firstWhere(
@@ -363,159 +386,91 @@ class _UserPermissionsScreenState extends State<UserPermissionsScreen> {
                     );
                     final email = user[emailKey] ?? '';
 
-                    final roleKey = user.keys.firstWhere(
-                      (k) => k.toLowerCase().trim() == 'role',
-                      orElse: () => 'Role',
-                    );
-                    final role = user[roleKey] ?? '';
-
-                    final permKey = user.keys.firstWhere(
-                      (k) => k.toLowerCase().trim() == 'permissions',
-                      orElse: () => 'Permissions',
-                    );
-                    final perms = user[permKey] ?? 'None';
-
-                    final accessKey = user.keys.firstWhere(
-                      (k) => k.toLowerCase().trim() == 'access permissions',
-                      orElse: () => 'Access Permissions',
-                    );
-                    final access = user[accessKey] ?? 'None';
-
-                    // Skip the admin account configuration to prevent self-lockout
                     final isAdmin = empId.toUpperCase() == 'ADMIN001';
 
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      color: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(color: Colors.grey.shade200),
-                      ),
+                    return InkWell(
+                      onTap: isAdmin ? null : () => _editUserPermissions(user),
                       child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
                           children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      empId,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                        color: Colors.black87,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      email,
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: isAdmin
-                                        ? Colors.purple.shade50
-                                        : Colors.blue.shade50,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    role,
-                                    style: TextStyle(
-                                      color: isAdmin
-                                          ? Colors.purple
-                                          : Colors.blue,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            Divider(height: 1, color: Colors.grey.shade100),
-                            const SizedBox(height: 12),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Access: ',
-                                  style: TextStyle(
-                                    fontSize: 13,
+                            // Left Initials Circle (Minimalist Avatar)
+                            Container(
+                              width: 46,
+                              height: 46,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFF3F4F6),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  empId.isNotEmpty ? empId[0] : 'U',
+                                  style: const TextStyle(
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.grey,
+                                    fontSize: 16,
+                                    color: Colors.black87,
                                   ),
-                                ),
-                                Expanded(
-                                  child: Text(
-                                    access,
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.black87,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Columns: ',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Text(
-                                    perms,
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.black87,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            if (!isAdmin) ...[
-                              const SizedBox(height: 12),
-                              Align(
-                                alignment: Alignment.bottomRight,
-                                child: TextButton.icon(
-                                  icon: const Icon(
-                                    Icons.edit_outlined,
-                                    size: 16,
-                                  ),
-                                  label: const Text('Edit Permissions'),
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: const Color(0xFF667EEA),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 6,
-                                    ),
-                                  ),
-                                  onPressed: () => _editUserPermissions(user),
                                 ),
                               ),
-                            ],
+                            ),
+                            const SizedBox(width: 16),
+
+                            // User info
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text(
+                                        empId,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      if (isAdmin)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFF3F4F6),
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: const Text(
+                                            'ADMIN',
+                                            style: TextStyle(
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    email,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            // Right Action indicator
+                            if (!isAdmin)
+                              Icon(
+                                Icons.arrow_forward_ios,
+                                size: 14,
+                                color: Colors.grey.shade400,
+                              ),
                           ],
                         ),
                       ),
