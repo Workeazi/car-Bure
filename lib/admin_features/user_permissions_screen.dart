@@ -12,23 +12,6 @@ class _UserPermissionsScreenState extends State<UserPermissionsScreen> {
   bool _isLoading = true;
   List<Map<String, String>> _usersList = [];
 
-  final List<String> _allPossibleColumns = [
-    'Date',
-    'IV NO',
-    'Grade',
-    'INVOICE VALUE',
-    'CHARCOAL',
-    'MOISTURE',
-    'material wt diff',
-    'Total wt debit',
-  ];
-
-  final List<String> _allAccessRights = [
-    'Read',
-    'Write',
-    'Delete',
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -95,212 +78,18 @@ class _UserPermissionsScreenState extends State<UserPermissionsScreen> {
         .where((e) => e.isNotEmpty)
         .toList();
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(ctx).viewInsets.bottom,
-              ),
-              child: Container(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(ctx).size.height * 0.8,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Handle Bar
-                    const SizedBox(height: 12),
-                    Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Header
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                empId,
-                                style: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              const Text(
-                                'Manage Access & Columns',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ],
-                          ),
-                          ElevatedButton(
-                            onPressed: () async {
-                              Navigator.pop(ctx);
-                              await _savePermissions(
-                                empId,
-                                selectedColumns.join(', '),
-                                selectedAccessRights.join(', '),
-                              );
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.black,
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 18,
-                                vertical: 10,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                            ),
-                            child: const Text(
-                              'Save',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    const Divider(height: 1),
-
-                    // Content Scroll
-                    Expanded(
-                      child: ListView(
-                        padding: const EdgeInsets.all(24),
-                        children: [
-                          // Access Rights Section
-                          const Text(
-                            'ACCESS RIGHTS',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey,
-                              letterSpacing: 1.1,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Wrap(
-                            spacing: 10,
-                            runSpacing: 10,
-                            children: _allAccessRights.map((right) {
-                              final isSelected = selectedAccessRights.any(
-                                (r) => r.toLowerCase() == right.toLowerCase(),
-                              );
-                              return ChoiceChip(
-                                label: Text(right),
-                                selected: isSelected,
-                                selectedColor: Colors.black87,
-                                backgroundColor: const Color(0xFFF3F4F6),
-                                labelStyle: TextStyle(
-                                  color: isSelected ? Colors.white : Colors.black87,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                  side: BorderSide(
-                                    color: isSelected ? Colors.black87 : Colors.grey.shade200,
-                                  ),
-                                ),
-                                onSelected: (selected) {
-                                  setModalState(() {
-                                    if (selected) {
-                                      selectedAccessRights.add(right);
-                                    } else {
-                                      selectedAccessRights.removeWhere(
-                                        (r) => r.toLowerCase() == right.toLowerCase(),
-                                      );
-                                    }
-                                  });
-                                },
-                              );
-                            }).toList(),
-                          ),
-                          const SizedBox(height: 32),
-
-                          // Column Permissions Section
-                          const Text(
-                            'ALLOWED COLUMNS',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey,
-                              letterSpacing: 1.1,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Wrap(
-                            spacing: 10,
-                            runSpacing: 10,
-                            children: _allPossibleColumns.map((col) {
-                              final isSelected = selectedColumns.any(
-                                (c) => c.toLowerCase() == col.toLowerCase(),
-                              );
-                              return ChoiceChip(
-                                label: Text(col),
-                                selected: isSelected,
-                                selectedColor: Colors.black87,
-                                backgroundColor: const Color(0xFFF3F4F6),
-                                labelStyle: TextStyle(
-                                  color: isSelected ? Colors.white : Colors.black87,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                  side: BorderSide(
-                                    color: isSelected ? Colors.black87 : Colors.grey.shade200,
-                                  ),
-                                ),
-                                onSelected: (selected) {
-                                  setModalState(() {
-                                    if (selected) {
-                                      selectedColumns.add(col);
-                                    } else {
-                                      selectedColumns.removeWhere(
-                                        (c) => c.toLowerCase() == col.toLowerCase(),
-                                      );
-                                    }
-                                  });
-                                },
-                              );
-                            }).toList(),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditUserPermissionsScreen(
+          empId: empId,
+          initialColumns: selectedColumns,
+          initialAccessRights: selectedAccessRights,
+          onSave: (perms, access) {
+            _savePermissions(empId, perms, access);
           },
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -385,7 +174,6 @@ class _UserPermissionsScreenState extends State<UserPermissionsScreen> {
                       orElse: () => 'Email ID',
                     );
                     final email = user[emailKey] ?? '';
-
                     final isAdmin = empId.toUpperCase() == 'ADMIN001';
 
                     return InkWell(
@@ -394,7 +182,6 @@ class _UserPermissionsScreenState extends State<UserPermissionsScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 4),
                         child: Row(
                           children: [
-                            // Left Initials Circle (Minimalist Avatar)
                             Container(
                               width: 46,
                               height: 46,
@@ -414,8 +201,6 @@ class _UserPermissionsScreenState extends State<UserPermissionsScreen> {
                               ),
                             ),
                             const SizedBox(width: 16),
-
-                            // User info
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -463,8 +248,6 @@ class _UserPermissionsScreenState extends State<UserPermissionsScreen> {
                                 ],
                               ),
                             ),
-
-                            // Right Action indicator
                             if (!isAdmin)
                               Icon(
                                 Icons.arrow_forward_ios,
@@ -478,6 +261,211 @@ class _UserPermissionsScreenState extends State<UserPermissionsScreen> {
                   },
                 ),
               ),
+      ),
+    );
+  }
+}
+
+class EditUserPermissionsScreen extends StatefulWidget {
+  final String empId;
+  final List<String> initialColumns;
+  final List<String> initialAccessRights;
+  final Function(String perms, String access) onSave;
+
+  const EditUserPermissionsScreen({
+    super.key,
+    required this.empId,
+    required this.initialColumns,
+    required this.initialAccessRights,
+    required this.onSave,
+  });
+
+  @override
+  State<EditUserPermissionsScreen> createState() => _EditUserPermissionsScreenState();
+}
+
+class _EditUserPermissionsScreenState extends State<EditUserPermissionsScreen> {
+  late List<String> selectedColumns;
+  late List<String> selectedAccessRights;
+
+  final List<String> _allPossibleColumns = [
+    'Date',
+    'IV NO',
+    'Grade',
+    'INVOICE VALUE',
+    'CHARCOAL',
+    'MOISTURE',
+    'material wt diff',
+    'Total wt debit',
+  ];
+
+  final List<String> _allAccessRights = [
+    'Read',
+    'Write',
+    'Delete',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    selectedColumns = List.from(widget.initialColumns);
+    selectedAccessRights = List.from(widget.initialAccessRights);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.empId,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+                fontSize: 18,
+              ),
+            ),
+            const Text(
+              'Permissions',
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                widget.onSave(
+                  selectedColumns.join(', '),
+                  selectedAccessRights.join(', '),
+                );
+              },
+              child: const Text(
+                'Save',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          children: [
+            const Text(
+              'ACCESS RIGHTS',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+                letterSpacing: 1.1,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: _allAccessRights.map((right) {
+                final isSelected = selectedAccessRights.any(
+                  (r) => r.toLowerCase() == right.toLowerCase(),
+                );
+                return ChoiceChip(
+                  label: Text(right),
+                  selected: isSelected,
+                  selectedColor: Colors.black87,
+                  backgroundColor: const Color(0xFFF3F4F6),
+                  labelStyle: TextStyle(
+                    color: isSelected ? Colors.white : Colors.black87,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    side: BorderSide(
+                      color: isSelected ? Colors.black87 : Colors.grey.shade200,
+                    ),
+                  ),
+                  onSelected: (selected) {
+                    setState(() {
+                      if (selected) {
+                        selectedAccessRights.add(right);
+                      } else {
+                        selectedAccessRights.removeWhere(
+                          (r) => r.toLowerCase() == right.toLowerCase(),
+                        );
+                      }
+                    });
+                  },
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 32),
+            const Text(
+              'ALLOWED COLUMNS',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+                letterSpacing: 1.1,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: _allPossibleColumns.map((col) {
+                final isSelected = selectedColumns.any(
+                  (c) => c.toLowerCase() == col.toLowerCase(),
+                );
+                return ChoiceChip(
+                  label: Text(col),
+                  selected: isSelected,
+                  selectedColor: Colors.black87,
+                  backgroundColor: const Color(0xFFF3F4F6),
+                  labelStyle: TextStyle(
+                    color: isSelected ? Colors.white : Colors.black87,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    side: BorderSide(
+                      color: isSelected ? Colors.black87 : Colors.grey.shade200,
+                    ),
+                  ),
+                  onSelected: (selected) {
+                    setState(() {
+                      if (selected) {
+                        selectedColumns.add(col);
+                      } else {
+                        selectedColumns.removeWhere(
+                          (c) => c.toLowerCase() == col.toLowerCase(),
+                        );
+                      }
+                    });
+                  },
+                );
+              }).toList(),
+            ),
+          ],
+        ),
       ),
     );
   }
