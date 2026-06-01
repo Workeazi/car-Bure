@@ -2,9 +2,10 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class GoogleSheetsService {
-  // Use http://10.0.2.2:3000 for Android emulator, http://localhost:3000 for iOS/Web
+  static String spreadsheetId = '1lkImcQTYrsKBc4eafO6AOyRqlqhXTXnn40gYb4B5jzM';
+
   // For production, replace this with your deployed backend URL.
-  static const String baseUrl = 'http://10.0.2.2:3000';
+  static const String baseUrl = 'https://workeazi-backend.onrender.com';
 
   // Returns null on success, error message on failure
   static Future<String?> editRow({
