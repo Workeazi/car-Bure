@@ -2,12 +2,6 @@
   "configVersion": 2,
   "packages": [
     {
-      "name": "_discoveryapis_commons",
-      "rootUri": "file:///C:/Users/MUFEETHLAFIRKRTC2021/AppData/Local/Pub/Cache/hosted/pub.dev/_discoveryapis_commons-1.0.7",
-      "packageUri": "lib/",
-      "languageVersion": "3.4"
-    },
-    {
       "name": "archive",
       "rootUri": "file:///C:/Users/MUFEETHLAFIRKRTC2021/AppData/Local/Pub/Cache/hosted/pub.dev/archive-4.0.9",
       "packageUri": "lib/",
@@ -130,30 +124,6 @@
     {
       "name": "flutter_web_plugins",
       "rootUri": "file:///C:/Flutter/src/flutter/packages/flutter_web_plugins",
-      "packageUri": "lib/",
-      "languageVersion": "3.9"
-    },
-    {
-      "name": "google_cloud",
-      "rootUri": "file:///C:/Users/MUFEETHLAFIRKRTC2021/AppData/Local/Pub/Cache/hosted/pub.dev/google_cloud-0.5.0",
-      "packageUri": "lib/",
-      "languageVersion": "3.9"
-    },
-    {
-      "name": "google_identity_services_web",
-      "rootUri": "file:///C:/Users/MUFEETHLAFIRKRTC2021/AppData/Local/Pub/Cache/hosted/pub.dev/google_identity_services_web-0.3.3+1",
-      "packageUri": "lib/",
-      "languageVersion": "3.4"
-    },
-    {
-      "name": "googleapis",
-      "rootUri": "file:///C:/Users/MUFEETHLAFIRKRTC2021/AppData/Local/Pub/Cache/hosted/pub.dev/googleapis-16.0.0",
-      "packageUri": "lib/",
-      "languageVersion": "3.9"
-    },
-    {
-      "name": "googleapis_auth",
-      "rootUri": "file:///C:/Users/MUFEETHLAFIRKRTC2021/AppData/Local/Pub/Cache/hosted/pub.dev/googleapis_auth-2.3.1",
       "packageUri": "lib/",
       "languageVersion": "3.9"
     },
