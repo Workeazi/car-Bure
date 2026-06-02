@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'dart:ui' as ui;
 import 'package:http/http.dart' as http;
 import 'home_screen.dart';
 import 'admin_features/admin_homePage.dart';
+import 'services/google_sheets_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -28,51 +31,37 @@ class _LoginPageState extends State<LoginPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(title),
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(message),
+            Text(message, style: const TextStyle(color: Colors.white70)),
             if (details != null) ...[
               const SizedBox(height: 12),
               Text(
                 details,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey,
-                ),
+                style: const TextStyle(fontSize: 12, color: Colors.white38),
               ),
             ],
           ],
         ),
         actions: [
           TextButton(
-            child: const Text('OK'),
+            child: const Text('OK', style: TextStyle(color: Color(0xFF8B5CF6))),
             onPressed: () => Navigator.pop(context),
           ),
         ],
       ),
     );
-  }
-
-  List<String> _parseCsvLine(String line) {
-    List<String> result = [];
-    StringBuffer current = StringBuffer();
-    bool inQuotes = false;
-    for (int i = 0; i < line.length; i++) {
-      var char = line[i];
-      if (char == '"') {
-        inQuotes = !inQuotes;
-      } else if (char == ',' && !inQuotes) {
-        result.add(current.toString());
-        current.clear();
-      } else {
-        current.write(char);
-      }
-    }
-    result.add(current.toString());
-    return result;
   }
 
   Future<void> _login() async {
@@ -92,44 +81,30 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      final url = Uri.parse(
-        'https://docs.google.com/spreadsheets/d/1lkImcQTYrsKBc4eafO6AOyRqlqhXTXnn40gYb4B5jzM/export?format=csv&gid=751895921',
-      );
-
-      final response = await http.get(url);
-
-      if (response.statusCode == 200) {
-        final lines = response.body.split('\n');
-
+      final data = await GoogleSheetsService.fetchSheet2Data();
+      if (data != null) {
         bool userFound = false;
         bool passwordMatched = false;
         String userPermissions = '';
         String userAccessPermissions = '';
+        String userRole = '';
         String matchedEmployeeId = '';
 
-        for (int i = 0; i < lines.length; i++) {
-          final line = lines[i];
-          final columns = _parseCsvLine(line);
+        for (final user in data) {
+          final cellEmployeeId = (user['Employee ID'] ?? '').trim();
+          final cellEmail = (user['Email ID'] ?? '').trim();
+          final cellPassword = (user['Password'] ?? '').trim();
 
-          if (columns.length >= 3) {
-            final cellEmployeeId = columns[0].trim();
-            final cellEmail = columns[1].trim();
-            final cellPassword = columns[2].trim();
-
-            if (cellEmployeeId == loginId || cellEmail == loginId) {
-              userFound = true;
-              if (cellPassword == password) {
-                passwordMatched = true;
-                matchedEmployeeId = cellEmployeeId;
-                if (columns.length > 5) {
-                  userPermissions = columns[5].trim();
-                }
-                if (columns.length > 6) {
-                  userAccessPermissions = columns[6].trim();
-                }
-              }
-              break;
+          if (cellEmployeeId == loginId || cellEmail == loginId) {
+            userFound = true;
+            if (cellPassword == password) {
+              passwordMatched = true;
+              matchedEmployeeId = cellEmployeeId;
+              userPermissions = (user['Permissions'] ?? '').trim();
+              userAccessPermissions = (user['Access Permissions'] ?? '').trim();
+              userRole = (user['Role'] ?? user['Designation'] ?? '').trim();
             }
+            break;
           }
         }
 
@@ -142,9 +117,7 @@ class _LoginPageState extends State<LoginPage> {
             if (matchedEmployeeId.toUpperCase() == 'ADMIN001') {
               Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => const AdminHomePage(),
-                ),
+                MaterialPageRoute(builder: (context) => const AdminHomePage()),
               );
             } else {
               Navigator.pushReplacement(
@@ -154,6 +127,7 @@ class _LoginPageState extends State<LoginPage> {
                     loginId: loginId,
                     permissions: userPermissions,
                     accessPermissions: userAccessPermissions,
+                    role: userRole,
                   ),
                 ),
               );
@@ -163,17 +137,22 @@ class _LoginPageState extends State<LoginPage> {
       } else {
         _showErrorDialog(
           'Network Error',
-          'Failed to fetch data. Status Code: ${response.statusCode}',
+          'Failed to fetch user data from backend.',
         );
       }
     } catch (e) {
-      if (e.toString().contains('SocketException') || e.toString().contains('Failed host lookup')) {
+      if (e.toString().contains('SocketException') ||
+          e.toString().contains('Failed host lookup')) {
         _showErrorDialog(
           'Connection Error',
           'No internet connection. Please verify your Wi-Fi or mobile data and try again.',
         );
       } else {
-        _showErrorDialog('Error', 'An unexpected error occurred.', e.toString());
+        _showErrorDialog(
+          'Error',
+          'An unexpected error occurred.',
+          e.toString(),
+        );
       }
     } finally {
       if (mounted) {
@@ -200,26 +179,17 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      final url = Uri.parse(
-        'https://docs.google.com/spreadsheets/d/1lkImcQTYrsKBc4eafO6AOyRqlqhXTXnn40gYb4B5jzM/export?format=csv&gid=751895921',
-      );
-      final response = await http.get(url);
-
-      if (response.statusCode == 200) {
-        final lines = response.body.split('\n');
+      final data = await GoogleSheetsService.fetchSheet2Data();
+      if (data != null) {
         bool userFound = false;
 
-        for (int i = 0; i < lines.length; i++) {
-          final line = lines[i];
-          final columns = _parseCsvLine(line);
+        for (final user in data) {
+          final cellEmployeeId = (user['Employee ID'] ?? '').trim();
+          final cellEmail = (user['Email ID'] ?? '').trim();
 
-          if (columns.isNotEmpty && columns.length >= 2) {
-            final cellEmployeeId = columns[0].trim();
-            final cellEmail = columns[1].trim();
-            if (cellEmployeeId == loginId || cellEmail == loginId) {
-              userFound = true;
-              break;
-            }
+          if (cellEmployeeId == loginId || cellEmail == loginId) {
+            userFound = true;
+            break;
           }
         }
 
@@ -257,17 +227,22 @@ class _LoginPageState extends State<LoginPage> {
       } else {
         _showErrorDialog(
           'Network Error',
-          'Failed to verify email. Status: ${response.statusCode}',
+          'Failed to verify email. Could not fetch data from backend.',
         );
       }
     } catch (e) {
-      if (e.toString().contains('SocketException') || e.toString().contains('Failed host lookup')) {
+      if (e.toString().contains('SocketException') ||
+          e.toString().contains('Failed host lookup')) {
         _showErrorDialog(
           'Connection Error',
           'No internet connection. Please verify your Wi-Fi or mobile data and try again.',
         );
       } else {
-        _showErrorDialog('Error', 'An unexpected error occurred.', e.toString());
+        _showErrorDialog(
+          'Error',
+          'An unexpected error occurred.',
+          e.toString(),
+        );
       }
     } finally {
       if (mounted) {
@@ -278,164 +253,257 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    bool isPassword = false,
+    bool isVisible = false,
+    VoidCallback? onVisibilityChanged,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.8),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.9), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: TextField(
+        controller: controller,
+        obscureText: isPassword && !isVisible,
+        style: const TextStyle(
+          color: Color(0xFF2D3748),
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+        ),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: TextStyle(
+            color: Colors.grey.shade500,
+            fontWeight: FontWeight.w600,
+          ),
+          prefixIcon: Icon(icon, color: const Color(0xFF667EEA).withValues(alpha: 0.8), size: 22),
+          suffixIcon: isPassword
+              ? IconButton(
+                  icon: Icon(
+                    isVisible
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                    color: Colors.grey.shade400,
+                    size: 20,
+                  ),
+                  onPressed: onVisibilityChanged,
+                )
+              : null,
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 18,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
-          ),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 90,
-                      height: 90,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.1),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
+      backgroundColor: const Color(0xFFF8FAFC),
+      body: Stack(
+        children: [
+          // Using the same beautiful animated background from the home screen
+          const AnimatedGradientBackground(),
+
+          // Main Content
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(32),
+                    child: BackdropFilter(
+                      filter: ui.ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                      child: Container(
+                        padding: const EdgeInsets.all(32.0),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.65),
+                          borderRadius: BorderRadius.circular(32),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.9),
+                            width: 1.5,
                           ),
-                        ],
-                      ),
-                      padding: const EdgeInsets.all(12),
-                      child: Image.asset('assets/logo.png'),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Welcome Back',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Login to your account',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.white70,
-                    ),
-                  ),
-                  const SizedBox(height: 48),
-                  TextField(
-                    controller: _emailController,
-                    style: const TextStyle(color: Colors.white),
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: InputDecoration(
-                      labelText: 'Email or Employee ID',
-                      labelStyle: const TextStyle(color: Colors.white70),
-                      prefixIcon: const Icon(Icons.email_outlined, color: Colors.white70),
-                      fillColor: Colors.white.withValues(alpha: 0.1),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(color: Colors.white24),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(color: Colors.white),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _passwordController,
-                    obscureText: !_isPasswordVisible,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      labelText: 'Password',
-                      labelStyle: const TextStyle(color: Colors.white70),
-                      prefixIcon: const Icon(Icons.lock_outlined, color: Colors.white70),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _isPasswordVisible ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                          color: Colors.white70,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _isPasswordVisible = !_isPasswordVisible;
-                          });
-                        },
-                      ),
-                      fillColor: Colors.white.withValues(alpha: 0.1),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(color: Colors.white24),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(color: Colors.white),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: _isLoading ? null : _forgotPassword,
-                      child: const Text(
-                        'Forgot Password?',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  ElevatedButton(
-                    onPressed: _isLoading ? null : _login,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: const Color(0xFF764BA2),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      elevation: 2,
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF764BA2)),
-                            ),
-                          )
-                        : const Text(
-                            'LOG IN',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.5,
-                            ),
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Colors.white.withValues(alpha: 0.9),
+                              Colors.white.withValues(alpha: 0.5),
+                            ],
                           ),
-                  ),
-                ],
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF667EEA).withValues(alpha: 0.15),
+                              blurRadius: 30,
+                              offset: const Offset(0, 15),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Logo
+                            Center(
+                              child: Container(
+                                width: 90,
+                                height: 90,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(24),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFF667EEA).withValues(alpha: 0.15),
+                                      blurRadius: 20,
+                                      offset: const Offset(0, 10),
+                                    ),
+                                  ],
+                                ),
+                                padding: const EdgeInsets.all(16),
+                                child: Image.asset('assets/logo.png'),
+                              ),
+                            ),
+                            const SizedBox(height: 32),
+
+                            // Welcome Text
+                            const Text(
+                              'Welcome Back',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 32,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFF2D3748),
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Sign in to continue',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                            const SizedBox(height: 40),
+
+                            // Fields
+                            _buildTextField(
+                              controller: _emailController,
+                              label: 'Email or Employee ID',
+                              icon: Icons.email_outlined,
+                            ),
+                            const SizedBox(height: 16),
+                            _buildTextField(
+                              controller: _passwordController,
+                              label: 'Password',
+                              icon: Icons.lock_outline_rounded,
+                              isPassword: true,
+                              isVisible: _isPasswordVisible,
+                              onVisibilityChanged: () {
+                                setState(() {
+                                  _isPasswordVisible = !_isPasswordVisible;
+                                });
+                              },
+                            ),
+                            const SizedBox(height: 12),
+
+                            // Forgot Password
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton(
+                                onPressed: _isLoading ? null : _forgotPassword,
+                                style: TextButton.styleFrom(
+                                  padding: EdgeInsets.zero,
+                                  minimumSize: Size.zero,
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: const Text(
+                                  'Forgot Password?',
+                                  style: TextStyle(
+                                    color: Color(0xFF667EEA),
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 32),
+
+                            // Login Button
+                            Container(
+                              height: 56,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(16),
+                                color: const Color(0xFF667EEA),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF667EEA).withValues(alpha: 0.3),
+                                    blurRadius: 20,
+                                    offset: const Offset(0, 8),
+                                  ),
+                                ],
+                              ),
+                              child: ElevatedButton(
+                                onPressed: _isLoading ? null : _login,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.transparent,
+                                  shadowColor: Colors.transparent,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                ),
+                                child: _isLoading
+                                    ? const SizedBox(
+                                        height: 24,
+                                        width: 24,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.5,
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                                Colors.white,
+                                              ),
+                                        ),
+                                      )
+                                    : const Text(
+                                        'Sign In',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    ).animate()
+                     .fadeIn(duration: 800.ms, curve: Curves.easeOutCubic)
+                     .slideY(begin: 0.1, duration: 800.ms, curve: Curves.easeOutCubic)
+                     .scaleXY(begin: 0.95, duration: 800.ms, curve: Curves.easeOutCubic),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

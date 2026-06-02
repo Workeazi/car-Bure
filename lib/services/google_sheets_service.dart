@@ -83,16 +83,62 @@ class GoogleSheetsService {
     }
   }
 
-  static Future<List<Map<String, String>>?> fetchSheetData() async {
+  /// Fetches data from the main sheet (gid=0).
+  /// If [sheetName] is provided, fetches that specific sheet instead.
+  static Future<List<Map<String, String>>?> fetchSheetData({String? sheetName}) async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/fetchSheetData'));
+      String url = '$baseUrl/fetchSheetData';
+      if (sheetName != null && sheetName.trim().isNotEmpty) {
+        url += '?sheetName=${Uri.encodeComponent(sheetName.trim())}';
+      }
+      final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body)['data'] as List;
         return data.map((e) => Map<String, String>.from(e)).toList();
+      } else {
+        final error = jsonDecode(response.body)['error'] ?? 'Unknown error';
+        throw Exception('Backend returned ${response.statusCode}: $error');
       }
-      return null;
     } catch (e) {
+      if (e is Exception) rethrow;
       return null;
+    }
+  }
+
+  /// Fetches data from the Kiln sheet (or any sheet by name via [sheetName]).
+  static Future<List<Map<String, String>>?> fetchKilnData({String sheetName = 'Kiln A'}) async {
+    try {
+      final url = '$baseUrl/fetchKilnData?sheetName=${Uri.encodeComponent(sheetName)}';
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body)['data'] as List;
+        return data.map((e) => Map<String, String>.from(e)).toList();
+      } else {
+        final error = jsonDecode(response.body)['error'] ?? 'Unknown error';
+        throw Exception('Backend returned ${response.statusCode}: $error');
+      }
+    } catch (e) {
+      if (e is Exception) rethrow;
+      return null;
+    }
+  }
+
+  /// Deletes a row from the main sheet identified by [ivNo].
+  static Future<String?> deleteRow({required String ivNo}) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/deleteRow'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'ivNo': ivNo}),
+      );
+      if (response.statusCode == 200) {
+        return null;
+      } else {
+        final error = jsonDecode(response.body)['error'] ?? 'Unknown error';
+        return 'Backend error: $error';
+      }
+    } catch (e) {
+      return 'Network error: $e';
     }
   }
 
