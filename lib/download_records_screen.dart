@@ -197,6 +197,58 @@ class _DownloadRecordsScreenState extends State<DownloadRecordsScreen> {
       final generatedOn =
           'Generated on: ${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}, ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
 
+      String _getFormattedDate(Map<String, String> record) {
+        String dateKey = record.keys.firstWhere(
+          (k) => k.trim().toLowerCase() == 'date',
+          orElse: () => '',
+        );
+        if (dateKey.isNotEmpty) {
+          final dateVal = record[dateKey]?.trim() ?? '';
+          if (dateVal.isNotEmpty && dateVal != '-') {
+            try {
+              final parts = dateVal.replaceAll('.', '-').replaceAll('/', '-').split('-');
+              if (parts.length >= 2) {
+                final day = int.tryParse(parts[0]);
+                if (day != null) {
+                  final months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+                  final monthIndex = months.indexOf(parts[1].toLowerCase());
+                  int month = 1;
+                  int year = DateTime.now().year;
+                  if (monthIndex != -1) {
+                    month = monthIndex + 1;
+                    if (parts.length >= 3) {
+                      year = int.tryParse(parts[2]) ?? year;
+                    }
+                  } else {
+                    month = int.tryParse(parts[1]) ?? 1;
+                    if (parts.length >= 3) {
+                      year = int.tryParse(parts[2]) ?? year;
+                    }
+                  }
+                  String d = day.toString().padLeft(2, '0');
+                  String m = month.toString().padLeft(2, '0');
+                  String y = (year % 100).toString().padLeft(2, '0');
+                  return '$d/$m/$y';
+                }
+              }
+              DateTime dt = DateTime.parse(dateVal);
+              String d = dt.day.toString().padLeft(2, '0');
+              String m = dt.month.toString().padLeft(2, '0');
+              String y = (dt.year % 100).toString().padLeft(2, '0');
+              return '$d/$m/$y';
+            } catch (_) {
+              return dateVal;
+            }
+          }
+        }
+        return '-';
+      }
+
+      List<String> pdfHeaders = List<String>.from(widget.permittedColumns);
+      if (!pdfHeaders.any((c) => c.toLowerCase() == 'date')) {
+        pdfHeaders.insert(0, 'Date');
+      }
+
       // Chunk records if there are too many to avoid massive pages.
       const int recordsPerPage = 20;
       for (int i = 0; i < filteredList.length; i += recordsPerPage) {
@@ -226,9 +278,12 @@ class _DownloadRecordsScreenState extends State<DownloadRecordsScreen> {
                   ),
                   pw.SizedBox(height: 20),
                   pw.TableHelper.fromTextArray(
-                    headers: widget.permittedColumns,
+                    headers: pdfHeaders,
                     data: chunk.map((record) {
-                      return widget.permittedColumns.map((col) {
+                      return pdfHeaders.map((col) {
+                        if (col.toLowerCase() == 'date') {
+                          return _getFormattedDate(record);
+                        }
                         final actualKey = record.keys.firstWhere(
                           (k) =>
                               k.trim().toLowerCase() ==

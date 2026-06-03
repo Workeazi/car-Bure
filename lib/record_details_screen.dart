@@ -140,6 +140,11 @@ class _RecordDetailsScreenState extends State<RecordDetailsScreen> {
       final generatedOn =
           'Generated on: ${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}, ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
 
+      List<String> pdfHeaders = List<String>.from(widget.permittedColumns);
+      if (!pdfHeaders.any((c) => c.toLowerCase() == 'date')) {
+        pdfHeaders.insert(0, 'Date');
+      }
+
       pdf.addPage(
         pw.Page(
           pageFormat: PdfPageFormat.a3.landscape,
@@ -165,9 +170,12 @@ class _RecordDetailsScreenState extends State<RecordDetailsScreen> {
                 ),
                 pw.SizedBox(height: 20),
                 pw.TableHelper.fromTextArray(
-                  headers: widget.permittedColumns,
+                  headers: pdfHeaders,
                   data: [
-                    widget.permittedColumns.map((col) {
+                    pdfHeaders.map((col) {
+                      if (col.toLowerCase() == 'date') {
+                        return _date;
+                      }
                       final actualKey = widget.record.keys.firstWhere(
                         (k) =>
                             k.trim().toLowerCase() ==

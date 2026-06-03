@@ -4,6 +4,7 @@ import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'services/google_sheets_service.dart';
@@ -50,6 +51,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   bool _isSortDescending = true;
+  bool _isSortByDate = false;
 
   bool get _canRead => _accessPermissions.toLowerCase().contains('read');
   bool get _canWrite => _accessPermissions.toLowerCase().contains('write');
@@ -111,7 +113,9 @@ class _HomeScreenState extends State<HomeScreen> {
     _accessPermissions = _currentAccessPermissions; // Fallback
     try {
       if (_currentAccessPermissions.trim().startsWith('[')) {
-        final List<dynamic> parsedAccess = jsonDecode(_currentAccessPermissions);
+        final List<dynamic> parsedAccess = jsonDecode(
+          _currentAccessPermissions,
+        );
         for (var item in parsedAccess) {
           if (item is Map && item['sheet'] != null) {
             String sheetName = item['sheet'].toString().trim().toLowerCase();
@@ -181,34 +185,47 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     // Refresh user permissions immediately in the background
-    GoogleSheetsService.fetchSheet2Data().then((users) async {
-      if (users != null && mounted) {
-        for (final user in users) {
-          final cellEmployeeId = user['Employee ID'] ?? user['EmployeeID'] ?? '';
-          final cellEmail = user['Email ID'] ?? user['Email'] ?? user['EmailID'] ?? '';
-          
-          if (cellEmployeeId == widget.loginId || cellEmail == widget.loginId) {
-            final newPerms = user['Permissions'] ?? user['fields'] ?? '';
-            final newAccess = user['Access Permissions'] ?? user['access_permissions'] ?? user['access permissions'] ?? '';
-            
-            if (newPerms.toString() != _currentPermissions || newAccess.toString() != _currentAccessPermissions) {
-              final prefs = await SharedPreferences.getInstance();
-              await prefs.setString('permissions', newPerms.toString());
-              await prefs.setString('accessPermissions', newAccess.toString());
-              
-              if (mounted) {
-                setState(() {
-                  _currentPermissions = newPerms.toString();
-                  _currentAccessPermissions = newAccess.toString();
-                  _parsePermissions();
-                });
+    GoogleSheetsService.fetchSheet2Data()
+        .then((users) async {
+          if (users != null && mounted) {
+            for (final user in users) {
+              final cellEmployeeId =
+                  user['Employee ID'] ?? user['EmployeeID'] ?? '';
+              final cellEmail =
+                  user['Email ID'] ?? user['Email'] ?? user['EmailID'] ?? '';
+
+              if (cellEmployeeId == widget.loginId ||
+                  cellEmail == widget.loginId) {
+                final newPerms = user['Permissions'] ?? user['fields'] ?? '';
+                final newAccess =
+                    user['Access Permissions'] ??
+                    user['access_permissions'] ??
+                    user['access permissions'] ??
+                    '';
+
+                if (newPerms.toString() != _currentPermissions ||
+                    newAccess.toString() != _currentAccessPermissions) {
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setString('permissions', newPerms.toString());
+                  await prefs.setString(
+                    'accessPermissions',
+                    newAccess.toString(),
+                  );
+
+                  if (mounted) {
+                    setState(() {
+                      _currentPermissions = newPerms.toString();
+                      _currentAccessPermissions = newAccess.toString();
+                      _parsePermissions();
+                    });
+                  }
+                }
+                break;
               }
             }
-            break;
           }
-        }
-      }
-    }).catchError((_) {});
+        })
+        .catchError((_) {});
 
     try {
       final parsedData = await GoogleSheetsService.fetchSheetData(
@@ -613,15 +630,51 @@ class _HomeScreenState extends State<HomeScreen> {
             const Divider(height: 1),
             ListTile(
               leading: const Icon(
-                Icons.arrow_downward,
+                Icons.calendar_today,
                 color: Color(0xFF667EEA),
               ),
-              title: const Text('Updated Time: Newest First'),
-              trailing: _isSortDescending
+              title: const Text('Date: Newest First'),
+              trailing: (_isSortByDate && _isSortDescending)
                   ? const Icon(Icons.check, color: Color(0xFF667EEA))
                   : null,
               onTap: () {
                 setState(() {
+                  _isSortByDate = true;
+                  _isSortDescending = true;
+                });
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.calendar_today,
+                color: Color(0xFF667EEA),
+              ),
+              title: const Text('Date: Oldest First'),
+              trailing: (_isSortByDate && !_isSortDescending)
+                  ? const Icon(Icons.check, color: Color(0xFF667EEA))
+                  : null,
+              onTap: () {
+                setState(() {
+                  _isSortByDate = true;
+                  _isSortDescending = false;
+                });
+                Navigator.pop(context);
+              },
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(
+                Icons.arrow_downward,
+                color: Color(0xFF667EEA),
+              ),
+              title: const Text('Updated Time: Newest First'),
+              trailing: (!_isSortByDate && _isSortDescending)
+                  ? const Icon(Icons.check, color: Color(0xFF667EEA))
+                  : null,
+              onTap: () {
+                setState(() {
+                  _isSortByDate = false;
                   _isSortDescending = true;
                 });
                 Navigator.pop(context);
@@ -630,11 +683,12 @@ class _HomeScreenState extends State<HomeScreen> {
             ListTile(
               leading: const Icon(Icons.arrow_upward, color: Color(0xFF667EEA)),
               title: const Text('Updated Time: Oldest First'),
-              trailing: !_isSortDescending
+              trailing: (!_isSortByDate && !_isSortDescending)
                   ? const Icon(Icons.check, color: Color(0xFF667EEA))
                   : null,
               onTap: () {
                 setState(() {
+                  _isSortByDate = false;
                   _isSortDescending = false;
                 });
                 Navigator.pop(context);
@@ -934,7 +988,9 @@ class _HomeScreenState extends State<HomeScreen> {
         orElse: () => item.keys.first,
       );
     }
-    final recordId = identifierKey.isNotEmpty ? (item[identifierKey] ?? '') : '';
+    final recordId = identifierKey.isNotEmpty
+        ? (item[identifierKey] ?? '')
+        : '';
 
     showDialog(
       context: context,
@@ -989,7 +1045,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final targetIvValue = item[identifierKey] ?? '';
 
     setState(() {
-      _dataList.removeWhere((rec) => (rec[identifierKey] ?? '') == targetIvValue);
+      _dataList.removeWhere(
+        (rec) => (rec[identifierKey] ?? '') == targetIvValue,
+      );
     });
 
     try {
@@ -1095,9 +1153,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
     String title = '-';
     String titleKeyLower = 'iv no';
+    String titleColName = 'IV NO';
     if (ivKey.isNotEmpty &&
         _permittedColumns.any((c) => c.toLowerCase() == 'iv no')) {
       title = item[ivKey] ?? '-';
+      titleColName = ivKey;
     } else if (_permittedColumns.isNotEmpty) {
       // Dynamic fallback for title if IV No is not present or not permitted
       final firstPerm = _permittedColumns.first;
@@ -1107,6 +1167,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
       title = item[actualKey] ?? '-';
       titleKeyLower = firstPerm.toLowerCase().trim();
+      titleColName = actualKey;
     }
 
     final dateKey = item.keys.firstWhere(
@@ -1257,7 +1318,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     Text(
                                       title.isEmpty || title == '-'
                                           ? 'Record'
-                                          : title,
+                                          : '${titleColName.toUpperCase()}: $title',
                                       style: const TextStyle(
                                         fontSize: 15,
                                         fontWeight: FontWeight.w800,
@@ -1275,10 +1336,14 @@ class _HomeScreenState extends State<HomeScreen> {
                                     vertical: 6,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF667EEA).withValues(alpha: 0.12),
+                                    color: const Color(
+                                      0xFF667EEA,
+                                    ).withValues(alpha: 0.12),
                                     borderRadius: BorderRadius.circular(10),
                                     border: Border.all(
-                                      color: const Color(0xFF667EEA).withValues(alpha: 0.25),
+                                      color: const Color(
+                                        0xFF667EEA,
+                                      ).withValues(alpha: 0.25),
                                     ),
                                   ),
                                   child: Row(
@@ -1291,7 +1356,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       ),
                                       const SizedBox(width: 5),
                                       Text(
-                                        dateVal,
+                                        '${(dateKey.isNotEmpty ? dateKey : 'DATE').toUpperCase()}: $dateVal',
                                         style: const TextStyle(
                                           fontSize: 12,
                                           fontWeight: FontWeight.w900,
@@ -1435,7 +1500,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ── NAV ITEM ─────────────────────────────────────────────────────────────────
-  Widget _buildDynamicPill(int index, IconData icon, String label, double activeWidth, double inactiveWidth) {
+  Widget _buildDynamicPill(
+    int index,
+    IconData icon,
+    String label,
+    double activeWidth,
+    double inactiveWidth,
+  ) {
     final isSelected = _currentIndex == index;
     return GestureDetector(
       onTap: () {
@@ -1452,19 +1523,23 @@ class _HomeScreenState extends State<HomeScreen> {
         decoration: BoxDecoration(
           color: isSelected ? const Color(0xFF667EEA) : Colors.transparent,
           borderRadius: BorderRadius.circular(27.5),
-          boxShadow: isSelected ? [
-            BoxShadow(
-              color: const Color(0xFF667EEA).withValues(alpha: 0.4),
-              blurRadius: 15,
-              spreadRadius: -2,
-              offset: const Offset(0, 6),
-            )
-          ] : [],
-          gradient: isSelected ? const LinearGradient(
-            colors: [Color(0xFF667EEA), Color(0xFF8B5CF6)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ) : null,
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF667EEA).withValues(alpha: 0.4),
+                    blurRadius: 15,
+                    spreadRadius: -2,
+                    offset: const Offset(0, 6),
+                  ),
+                ]
+              : [],
+          gradient: isSelected
+              ? const LinearGradient(
+                  colors: [Color(0xFF667EEA), Color(0xFF8B5CF6)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(27.5),
@@ -1531,10 +1606,45 @@ class _HomeScreenState extends State<HomeScreen> {
       }
       return false;
     }).toList();
-    final displayList = _isSortDescending
-        ? filteredList.reversed.toList()
-        : filteredList;
 
+    final displayList = List<Map<String, String>>.from(filteredList);
+    if (_isSortByDate) {
+      displayList.sort((a, b) {
+        final dateKeyA = a.keys.firstWhere(
+          (k) => k.toLowerCase().trim() == 'date',
+          orElse: () => '',
+        );
+        final dateKeyB = b.keys.firstWhere(
+          (k) => k.toLowerCase().trim() == 'date',
+          orElse: () => '',
+        );
+
+        DateTime? dtA;
+        DateTime? dtB;
+        if (dateKeyA.isNotEmpty && a[dateKeyA] != null) {
+          try {
+            dtA = _parseDateString(a[dateKeyA]!);
+          } catch (_) {}
+        }
+        if (dateKeyB.isNotEmpty && b[dateKeyB] != null) {
+          try {
+            dtB = _parseDateString(b[dateKeyB]!);
+          } catch (_) {}
+        }
+
+        if (dtA == null && dtB == null) return 0;
+        if (dtA == null) return _isSortDescending ? 1 : -1;
+        if (dtB == null) return _isSortDescending ? -1 : 1;
+
+        return _isSortDescending ? dtB.compareTo(dtA) : dtA.compareTo(dtB);
+      });
+    } else {
+      if (_isSortDescending) {
+        final reversed = displayList.reversed.toList();
+        displayList.clear();
+        displayList.addAll(reversed);
+      }
+    }
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       extendBody: true, // Allows content to scroll behind the floating nav bar
@@ -1589,9 +1699,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         slivers: [
                           if (_isLoading)
                             const SliverFillRemaining(
-                              child: Center(
-                                child: AestheticLoader(size: 60),
-                              ),
+                              child: Center(child: AestheticLoader(size: 60)),
                             )
                           else if (_permittedColumns.isEmpty)
                             _buildEmptyState(
@@ -1931,30 +2039,99 @@ class _HomeScreenState extends State<HomeScreen> {
                                       ),
                                       const SizedBox(width: 10),
                                       GestureDetector(
-                                        onTap: _showSortSheet,
-                                        child: Container(
+                                        onTap: () {
+                                          HapticFeedback.lightImpact();
+                                          _showSortSheet();
+                                        },
+                                        child: AnimatedContainer(
+                                          duration: const Duration(
+                                            milliseconds: 350,
+                                          ),
+                                          curve: Curves.easeOutBack,
                                           padding: const EdgeInsets.all(14),
                                           decoration: BoxDecoration(
-                                            color: Colors.white,
+                                            color: _isSortByDate
+                                                ? const Color(0xFF667EEA)
+                                                : Colors.white,
                                             borderRadius: BorderRadius.circular(
                                               16,
                                             ),
                                             boxShadow: [
                                               BoxShadow(
-                                                color: Colors.black.withValues(
-                                                  alpha: 0.04,
-                                                ),
-                                                blurRadius: 12,
+                                                color:
+                                                    (_isSortByDate
+                                                            ? const Color(
+                                                                0xFF667EEA,
+                                                              )
+                                                            : Colors.black)
+                                                        .withValues(
+                                                          alpha: _isSortByDate
+                                                              ? 0.35
+                                                              : 0.04,
+                                                        ),
+                                                blurRadius: _isSortByDate
+                                                    ? 16
+                                                    : 12,
+                                                spreadRadius: _isSortByDate
+                                                    ? 2
+                                                    : 0,
                                                 offset: const Offset(0, 4),
                                               ),
                                             ],
                                           ),
-                                          child: Icon(
-                                            _isSortDescending
-                                                ? Icons.arrow_downward_rounded
-                                                : Icons.arrow_upward_rounded,
-                                            color: const Color(0xFF667EEA),
-                                            size: 20,
+                                          child: AnimatedSwitcher(
+                                            duration: const Duration(
+                                              milliseconds: 350,
+                                            ),
+                                            transitionBuilder:
+                                                (child, animation) {
+                                                  return RotationTransition(
+                                                    turns:
+                                                        Tween<double>(
+                                                          begin: 0.5,
+                                                          end: 1.0,
+                                                        ).animate(
+                                                          CurvedAnimation(
+                                                            parent: animation,
+                                                            curve: Curves
+                                                                .easeOutBack,
+                                                          ),
+                                                        ),
+                                                    child: ScaleTransition(
+                                                      scale:
+                                                          Tween<double>(
+                                                            begin: 0.5,
+                                                            end: 1.0,
+                                                          ).animate(
+                                                            CurvedAnimation(
+                                                              parent: animation,
+                                                              curve: Curves
+                                                                  .easeOutBack,
+                                                            ),
+                                                          ),
+                                                      child: FadeTransition(
+                                                        opacity: animation,
+                                                        child: child,
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                            child: Icon(
+                                              _isSortByDate
+                                                  ? Icons.calendar_month_rounded
+                                                  : (_isSortDescending
+                                                        ? Icons
+                                                              .arrow_downward_rounded
+                                                        : Icons
+                                                              .arrow_upward_rounded),
+                                              key: ValueKey(
+                                                'sort_icon_${_isSortByDate}_$_isSortDescending',
+                                              ),
+                                              color: _isSortByDate
+                                                  ? Colors.white
+                                                  : const Color(0xFF667EEA),
+                                              size: 20,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -2020,7 +2197,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                                 sliver: SliverList.separated(
                                   itemCount: displayList.length,
-                                  separatorBuilder: (context, index) => const SizedBox(height: 12),
+                                  separatorBuilder: (context, index) =>
+                                      const SizedBox(height: 12),
                                   itemBuilder: (ctx, i) {
                                     return _buildCard(displayList[i], i)
                                         .animate(delay: (i * 30).ms)
@@ -2056,58 +2234,96 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Builder(
             builder: (context) {
               final width = MediaQuery.of(context).size.width;
-              final totalUsable = width - 40 - 20; // 40 for outer padding, 20 for inner padding
+              final totalUsable =
+                  width - 40 - 20; // 40 for outer padding, 20 for inner padding
               final activeWidth = totalUsable * 0.45;
               final inactiveWidth = totalUsable * 0.17; // 45 + 17*3 = 96%
-              
+
               return Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(37.5),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF667EEA).withValues(alpha: 0.15),
-                      blurRadius: 30,
-                      spreadRadius: -5,
-                      offset: const Offset(0, 10),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(37.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(
+                            0xFF667EEA,
+                          ).withValues(alpha: 0.15),
+                          blurRadius: 30,
+                          spreadRadius: -5,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(37.5),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
-                    child: Container(
-                      height: 75,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.05),
-                        borderRadius: BorderRadius.circular(37.5),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          width: 1.5,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(37.5),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+                        child: Container(
+                          height: 75,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(37.5),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              _buildDynamicPill(
+                                0,
+                                Icons.list_alt_rounded,
+                                'Records',
+                                activeWidth,
+                                inactiveWidth,
+                              ),
+                              _buildDynamicPill(
+                                1,
+                                Icons.bar_chart_rounded,
+                                'Dash',
+                                activeWidth,
+                                inactiveWidth,
+                              ),
+                              _buildDynamicPill(
+                                2,
+                                Icons.cloud_download_rounded,
+                                'Export',
+                                activeWidth,
+                                inactiveWidth,
+                              ),
+                              _buildDynamicPill(
+                                3,
+                                Icons.person_rounded,
+                                'Profile',
+                                activeWidth,
+                                inactiveWidth,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          _buildDynamicPill(0, Icons.list_alt_rounded, 'Records', activeWidth, inactiveWidth),
-                          _buildDynamicPill(1, Icons.bar_chart_rounded, 'Dash', activeWidth, inactiveWidth),
-                          _buildDynamicPill(2, Icons.cloud_download_rounded, 'Export', activeWidth, inactiveWidth),
-                          _buildDynamicPill(3, Icons.person_rounded, 'Profile', activeWidth, inactiveWidth),
-                        ],
-                      ),
                     ),
-                  ),
-                ),
-              ).animate()
-               .fadeIn(duration: 800.ms, curve: Curves.easeOut)
-               .slideY(begin: 0.8, curve: Curves.easeOutBack, duration: 800.ms)
-               .shimmer(delay: 500.ms, duration: 2000.ms, color: Colors.white.withValues(alpha: 0.4));
+                  )
+                  .animate()
+                  .fadeIn(duration: 800.ms, curve: Curves.easeOut)
+                  .slideY(
+                    begin: 0.8,
+                    curve: Curves.easeOutBack,
+                    duration: 800.ms,
+                  )
+                  .shimmer(
+                    delay: 500.ms,
+                    duration: 2000.ms,
+                    color: Colors.white.withValues(alpha: 0.4),
+                  );
             },
           ),
         ),
       ),
-
     );
   }
 
