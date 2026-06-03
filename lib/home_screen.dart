@@ -471,19 +471,27 @@ class _HomeScreenState extends State<HomeScreen> {
   ) async {
     final originalList = List<Map<String, String>>.from(_dataList);
 
-    // Identify row key identifier (IV NO)
-    final ivKey = originalItem.keys.firstWhere(
-      (k) => k.toLowerCase() == 'iv no',
+    // Identify row key identifier (try IV NO first, then Date, then fallback to first column)
+    String identifierKey = originalItem.keys.firstWhere(
+      (k) => k.toLowerCase().trim() == 'iv no',
       orElse: () => '',
     );
-    if (ivKey.isEmpty) {
+
+    if (identifierKey.isEmpty && originalItem.keys.isNotEmpty) {
+      identifierKey = originalItem.keys.firstWhere(
+        (k) => k.toLowerCase().trim() == 'date',
+        orElse: () => originalItem.keys.first,
+      );
+    }
+
+    if (identifierKey.isEmpty) {
       _showErrorDialog(
-        'Missing Key: Could not locate IV NO column identifier.',
+        'Missing Key: Could not locate a valid column identifier (e.g. IV NO or Date).',
       );
       return;
     }
 
-    final targetIvValue = originalItem[ivKey] ?? '';
+    final targetIvValue = originalItem[identifierKey] ?? '';
 
     // Align all fields perfectly
     final alignedRecord = <String, String>{};
@@ -519,6 +527,8 @@ class _HomeScreenState extends State<HomeScreen> {
         ivNo: targetIvValue,
         updates: actualUpdates,
         sheetName: _getSheetToFetch(),
+        identifierKey: identifierKey,
+        identifierValue: targetIvValue,
       );
 
       if (error != null) {
@@ -878,11 +888,17 @@ class _HomeScreenState extends State<HomeScreen> {
   // ─── DELETE ACTION ──────────────────────────────────────────────────────────
 
   void _confirmDelete(Map<String, String> item) {
-    final ivKey = item.keys.firstWhere(
-      (k) => k.toLowerCase() == 'iv no',
+    String identifierKey = item.keys.firstWhere(
+      (k) => k.toLowerCase().trim() == 'iv no',
       orElse: () => '',
     );
-    final recordId = ivKey.isNotEmpty ? (item[ivKey] ?? '') : '';
+    if (identifierKey.isEmpty && item.keys.isNotEmpty) {
+      identifierKey = item.keys.firstWhere(
+        (k) => k.toLowerCase().trim() == 'date',
+        orElse: () => item.keys.first,
+      );
+    }
+    final recordId = identifierKey.isNotEmpty ? (item[identifierKey] ?? '') : '';
 
     showDialog(
       context: context,
@@ -914,21 +930,30 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _performDelete(Map<String, String> item) async {
     final originalList = List<Map<String, String>>.from(_dataList);
 
-    final ivKey = item.keys.firstWhere(
-      (k) => k.toLowerCase() == 'iv no',
+    // Identify row key identifier (try IV NO first, then Date, then fallback to first column)
+    String identifierKey = item.keys.firstWhere(
+      (k) => k.toLowerCase().trim() == 'iv no',
       orElse: () => '',
     );
-    if (ivKey.isEmpty) {
+
+    if (identifierKey.isEmpty && item.keys.isNotEmpty) {
+      identifierKey = item.keys.firstWhere(
+        (k) => k.toLowerCase().trim() == 'date',
+        orElse: () => item.keys.first,
+      );
+    }
+
+    if (identifierKey.isEmpty) {
       _showErrorDialog(
-        'Missing Identifier: Could not locate IV NO column identifier.',
+        'Missing Identifier: Could not locate a valid column identifier.',
       );
       return;
     }
 
-    final targetIvValue = item[ivKey] ?? '';
+    final targetIvValue = item[identifierKey] ?? '';
 
     setState(() {
-      _dataList.removeWhere((rec) => (rec[ivKey] ?? '') == targetIvValue);
+      _dataList.removeWhere((rec) => (rec[identifierKey] ?? '') == targetIvValue);
     });
 
     try {
@@ -936,6 +961,8 @@ class _HomeScreenState extends State<HomeScreen> {
         ivNo: targetIvValue,
         permittedColumns: _permittedColumns,
         sheetName: _getSheetToFetch(),
+        identifierKey: identifierKey,
+        identifierValue: targetIvValue,
       );
 
       if (error != null) {
@@ -1935,11 +1962,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                   horizontal: 16,
                                   vertical: 8,
                                 ),
-                                sliver: SliverMasonryGrid.count(
-                                  crossAxisCount: 2,
-                                  mainAxisSpacing: 12,
-                                  crossAxisSpacing: 12,
-                                  childCount: displayList.length,
+                                sliver: SliverList.separated(
+                                  itemCount: displayList.length,
+                                  separatorBuilder: (context, index) => const SizedBox(height: 12),
                                   itemBuilder: (ctx, i) {
                                     return _buildCard(displayList[i], i)
                                         .animate(delay: (i * 30).ms)

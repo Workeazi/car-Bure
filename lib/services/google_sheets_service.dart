@@ -9,9 +9,11 @@ class GoogleSheetsService {
 
   // Returns null on success, error message on failure
   static Future<String?> editRow({
-    required String ivNo,
+    required String ivNo, // kept for backward compatibility if not provided
     required Map<String, String> updates,
     String? sheetName,
+    String? identifierKey,
+    String? identifierValue,
   }) async {
     try {
       String url = '$baseUrl/editRow';
@@ -25,6 +27,8 @@ class GoogleSheetsService {
         body: jsonEncode({
           'ivNo': ivNo,
           'updates': updates,
+          if (identifierKey != null) 'identifierKey': identifierKey,
+          if (identifierValue != null) 'identifierValue': identifierValue,
         }),
       );
 
@@ -44,6 +48,8 @@ class GoogleSheetsService {
     required String ivNo,
     required List<String> permittedColumns,
     String? sheetName,
+    String? identifierKey,
+    String? identifierValue,
   }) async {
     try {
       String url = '$baseUrl/clearRowToNil';
@@ -57,6 +63,8 @@ class GoogleSheetsService {
         body: jsonEncode({
           'ivNo': ivNo,
           'permittedColumns': permittedColumns,
+          if (identifierKey != null) 'identifierKey': identifierKey,
+          if (identifierValue != null) 'identifierValue': identifierValue,
         }),
       );
 

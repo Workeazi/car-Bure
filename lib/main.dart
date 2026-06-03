@@ -146,6 +146,7 @@ class _SplashScreenState extends State<SplashScreen> {
             Container(
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
+                    color: Colors.white, // Ensure pure circular mask
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.3),
@@ -179,10 +180,10 @@ class _SplashScreenState extends State<SplashScreen> {
                 .shimmer(
                   delay: 400.ms,
                   duration: 800.ms,
-                  color: Colors.white,
+                  color: Colors.white.withValues(alpha: 0.6), // Soften the shimmer
                   angle: 1.2,
                   size: 3.0,
-                  blendMode: BlendMode.screen,
+                  // Removed BlendMode.screen which causes the square artifact
                 )
                 // 4. A very subtle rumble/shake (the bass drop moment)
                 .shake(

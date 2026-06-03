@@ -1,4 +1,4 @@
-
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
@@ -8,7 +8,11 @@ class DashboardScreen extends StatefulWidget {
   final List<Map<String, String>> dataList;
   final List<String> permittedColumns;
 
-  const DashboardScreen({super.key, required this.dataList, required this.permittedColumns});
+  const DashboardScreen({
+    super.key,
+    required this.dataList,
+    required this.permittedColumns,
+  });
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -27,9 +31,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   DateTime? _parseDate(String dateStr) {
     if (dateStr.isEmpty) return null;
-    
+
     dateStr = dateStr.trim();
-    
+
     final formats = [
       'd-MMM-yy',
       'dd-MMM-yy',
@@ -44,7 +48,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       'dd.MM.yyyy',
       'dd-MM-yyyy',
     ];
-    
+
     for (final fmt in formats) {
       try {
         return DateFormat(fmt).parse(dateStr);
@@ -176,7 +180,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   color: Colors.white.withValues(alpha: 0.8),
                   width: 1.5,
                 ),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(8),
+                ),
                 backDrawRodData: BackgroundBarChartRodData(
                   show: true,
                   toY: maxY,
@@ -231,13 +237,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
           itemDate.isBefore(endDateEnd);
     }).toList();
   }
+
   List<Widget> _buildDynamicCharts(List<Map<String, String>> filteredList) {
     if (filteredList.isEmpty) return [];
 
     final numericKeys = <String>{};
     final ignoreKeys = ['date', 'iv no', 'ch.no', 's.no', 'id'];
 
-    final permittedLower = widget.permittedColumns.map((c) => c.toLowerCase().trim()).toSet();
+    final permittedLower = widget.permittedColumns
+        .map((c) => c.toLowerCase().trim())
+        .toSet();
 
     // Take recent data to figure out which columns are numeric
     final recentData = filteredList.reversed.take(15).toList();
@@ -246,10 +255,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final key = entry.key.trim();
         final lowerKey = key.toLowerCase();
         if (ignoreKeys.any((ignore) => lowerKey == ignore)) continue;
-        
+
         // Only allow dynamically plotting columns that the user is permitted to see
-        if (widget.permittedColumns.isNotEmpty && !permittedLower.contains(lowerKey)) continue;
-        
+        if (widget.permittedColumns.isNotEmpty &&
+            !permittedLower.contains(lowerKey))
+          continue;
+
         final val = _parseDouble(entry.value);
         if (val > 0) {
           numericKeys.add(key);
@@ -258,7 +269,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     final keysToChart = numericKeys.toList().take(5).toList();
-    
+
     final colors = [
       const Color(0xFF667EEA),
       const Color(0xFF48BB78),
@@ -271,10 +282,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
     for (int i = 0; i < keysToChart.length; i++) {
       final key = keysToChart[i];
       // Format title to Title Case
-      final title = key.split(' ').map((word) => word.isNotEmpty ? '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}' : '').join(' ');
-      charts.add(_buildChart(title, key, colors[i % colors.length], filteredList));
+      final title = key
+          .split(' ')
+          .map(
+            (word) => word.isNotEmpty
+                ? '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}'
+                : '',
+          )
+          .join(' ');
+      charts.add(
+        _buildChart(title, key, colors[i % colors.length], filteredList),
+      );
     }
-    
+
     if (charts.isEmpty) {
       return [
         const Padding(
@@ -285,10 +305,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
               style: TextStyle(color: Color(0xFF718096), fontSize: 16),
             ),
           ),
-        )
+        ),
       ];
     }
-    
+
     return charts;
   }
 
@@ -311,133 +331,154 @@ class _DashboardScreenState extends State<DashboardScreen> {
       padding: const EdgeInsets.all(24),
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Analytics Overview',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF1A202C),
-                    letterSpacing: -0.5,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Analytics Overview',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1A202C),
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Showing: $dateRangeText',
+                      style: const TextStyle(
+                        color: Color(0xFF718096),
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Showing: $dateRangeText',
-                  style: const TextStyle(
-                    color: Color(0xFF718096),
-                    fontSize: 14,
+                IconButton(
+                  icon: Icon(
+                    _startDate != null
+                        ? Icons.filter_alt_off_rounded
+                        : Icons.date_range_rounded,
+                    color: const Color(0xFF667EEA),
                   ),
+                  onPressed: () {
+                    if (_startDate != null) {
+                      setState(() {
+                        _startDate = null;
+                        _endDate = null;
+                      });
+                    } else {
+                      _selectDateRange();
+                    }
+                  },
+                  tooltip: _startDate != null
+                      ? 'Clear Date Filter'
+                      : 'Filter by Date',
                 ),
               ],
-            ),
-            IconButton(
-              icon: Icon(
-                _startDate != null
-                    ? Icons.filter_alt_off_rounded
-                    : Icons.date_range_rounded,
-                color: const Color(0xFF667EEA),
-              ),
-              onPressed: () {
-                if (_startDate != null) {
-                  setState(() {
-                    _startDate = null;
-                    _endDate = null;
-                  });
-                } else {
-                  _selectDateRange();
-                }
-              },
-              tooltip: _startDate != null
-                  ? 'Clear Date Filter'
-                  : 'Filter by Date',
-            ),
-          ],
-        ).animate().fade(duration: 600.ms).slideX(begin: -0.1, duration: 600.ms, curve: Curves.easeOutCubic),
+            )
+            .animate()
+            .fade(duration: 600.ms)
+            .slideX(begin: -0.1, duration: 600.ms, curve: Curves.easeOutCubic),
         const SizedBox(height: 32),
 
         if (filteredList.isEmpty)
           Container(
-            margin: const EdgeInsets.only(top: 24),
-            padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
+                margin: const EdgeInsets.only(top: 24),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 60,
+                  horizontal: 24,
                 ),
-              ],
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF667EEA).withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.event_busy_rounded,
-                    color: Color(0xFF667EEA),
-                    size: 40,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  'No Records Found',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF2D3748),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'There are no analytics to show for the selected date range ($dateRangeText). Try adjusting your filter.',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Color(0xFF718096),
-                    fontSize: 15,
-                    height: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 32),
-                TextButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _startDate = null;
-                      _endDate = null;
-                    });
-                  },
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('Reset Filter'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: const Color(0xFF667EEA),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
                     ),
-                    backgroundColor: const Color(
-                      0xFF667EEA,
-                    ).withValues(alpha: 0.1),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
+                  ],
                 ),
-              ],
-            ),
-          ).animate().fade(duration: 500.ms).scaleXY(begin: 0.9, end: 1.0, duration: 500.ms, curve: Curves.easeOutBack)
-        else 
-          ..._buildDynamicCharts(filteredList).animate(interval: 150.ms).fade(duration: 600.ms).slideY(begin: 0.15, duration: 600.ms, curve: Curves.easeOutCubic),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF667EEA).withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.event_busy_rounded,
+                        color: Color(0xFF667EEA),
+                        size: 40,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'No Records Found',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF2D3748),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'There are no analytics to show for the selected date range ($dateRangeText). Try adjusting your filter.',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Color(0xFF718096),
+                        fontSize: 15,
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    TextButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _startDate = null;
+                          _endDate = null;
+                        });
+                      },
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: const Text('Reset Filter'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFF667EEA),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                        backgroundColor: const Color(
+                          0xFF667EEA,
+                        ).withValues(alpha: 0.1),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+              .animate()
+              .fade(duration: 500.ms)
+              .scaleXY(
+                begin: 0.9,
+                end: 1.0,
+                duration: 500.ms,
+                curve: Curves.easeOutBack,
+              )
+        else
+          ..._buildDynamicCharts(filteredList)
+              .animate(interval: 150.ms)
+              .fade(duration: 600.ms)
+              .slideY(
+                begin: 0.15,
+                duration: 600.ms,
+                curve: Curves.easeOutCubic,
+              ),
       ],
     );
   }
@@ -467,7 +508,36 @@ class _ChartCard extends StatefulWidget {
 }
 
 class _ChartCardState extends State<_ChartCard> {
-  bool _isPieChart = false;
+  late PageController _pageController;
+  int _currentPage = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+    _startAutoPlay();
+  }
+
+  void _startAutoPlay() {
+    _timer = Timer.periodic(const Duration(seconds: 3), (Timer timer) {
+      if (_pageController.hasClients) {
+        int nextPage = _currentPage == 0 ? 1 : 0;
+        _pageController.animateToPage(
+          nextPage,
+          duration: const Duration(milliseconds: 800),
+          curve: Curves.fastLinearToSlowEaseIn,
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -483,7 +553,10 @@ class _ChartCardState extends State<_ChartCard> {
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.85),
           borderRadius: BorderRadius.circular(32),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.9), width: 1.5),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.9),
+            width: 1.5,
+          ),
           boxShadow: [
             BoxShadow(
               color: color.withValues(alpha: 0.1),
@@ -495,7 +568,11 @@ class _ChartCardState extends State<_ChartCard> {
         ),
         child: Column(
           children: [
-            Icon(Icons.bar_chart_rounded, color: color.withValues(alpha: 0.5), size: 48),
+            Icon(
+              Icons.bar_chart_rounded,
+              color: color.withValues(alpha: 0.5),
+              size: 48,
+            ),
             const SizedBox(height: 16),
             Text(
               title,
@@ -509,10 +586,7 @@ class _ChartCardState extends State<_ChartCard> {
             const Text(
               'No data available for this metric in the selected date range.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Color(0xFF718096),
-                fontSize: 14,
-              ),
+              style: TextStyle(color: Color(0xFF718096), fontSize: 14),
             ),
           ],
         ),
@@ -534,7 +608,10 @@ class _ChartCardState extends State<_ChartCard> {
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.65),
         borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.9), width: 1.5),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.9),
+          width: 1.5,
+        ),
         boxShadow: [
           BoxShadow(
             color: color.withValues(alpha: 0.15),
@@ -552,136 +629,180 @@ class _ChartCardState extends State<_ChartCard> {
           end: Alignment.bottomRight,
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
+      child:
+          Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Icon(Icons.show_chart_rounded, color: color, size: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: color.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Icon(
+                                Icons.show_chart_rounded,
+                                color: color,
+                                size: 24,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Text(
+                              title,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF2D3748),
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                        // Premium Animated Dots Indicator
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: List.generate(2, (index) {
+                            final isActive = _currentPage == index;
+                            return AnimatedContainer(
+                              duration: const Duration(milliseconds: 800),
+                              curve: Curves.fastLinearToSlowEaseIn,
+                              margin: const EdgeInsets.symmetric(horizontal: 3),
+                              height: 6,
+                              width: isActive ? 20 : 6,
+                              decoration: BoxDecoration(
+                                color: isActive
+                                    ? color
+                                    : color.withValues(alpha: 0.3),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            );
+                          }),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 14),
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF2D3748),
-                        letterSpacing: -0.5,
+                    const SizedBox(height: 32),
+                    SizedBox(
+                      height: 220,
+                      child: PageView(
+                        controller: _pageController,
+                        physics: const BouncingScrollPhysics(),
+                        onPageChanged: (index) {
+                          setState(() {
+                            _currentPage = index;
+                          });
+                        },
+                        children: [
+                          _buildPointChart(
+                                chartData,
+                                dateLabels,
+                                color,
+                                maxY,
+                                key: const ValueKey('point'),
+                              )
+                              .animate(
+                                onPlay: (controller) =>
+                                    controller.repeat(reverse: true),
+                              )
+                              .shimmer(
+                                duration: 3000.ms,
+                                color: Colors.white.withValues(alpha: 0.2),
+                              ),
+                          _buildPieChart(
+                                chartData,
+                                dateLabels,
+                                color,
+                                key: const ValueKey('pie'),
+                              )
+                              .animate(
+                                onPlay: (controller) =>
+                                    controller.repeat(reverse: true),
+                              )
+                              .shimmer(
+                                duration: 3000.ms,
+                                color: Colors.white.withValues(alpha: 0.2),
+                              ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-                // Premium Toggle
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      GestureDetector(
-                        onTap: () => setState(() => _isPieChart = false),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeOutCubic,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: !_isPieChart ? Colors.white : Colors.transparent,
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: !_isPieChart ? [
-                              BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))
-                            ] : [],
-                          ),
-                          child: Icon(Icons.bar_chart_rounded, size: 18, color: !_isPieChart ? color : Colors.grey.shade400),
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () => setState(() => _isPieChart = true),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeOutCubic,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: _isPieChart ? Colors.white : Colors.transparent,
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: _isPieChart ? [
-                              BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))
-                            ] : [],
-                          ),
-                          child: Icon(Icons.pie_chart_rounded, size: 18, color: _isPieChart ? color : Colors.grey.shade400),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              height: 220,
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 600),
-                switchInCurve: Curves.easeOutBack,
-                switchOutCurve: Curves.easeInCubic,
-                transitionBuilder: (Widget child, Animation<double> animation) {
-                  return FadeTransition(
-                    opacity: animation,
-                    child: ScaleTransition(
-                      scale: Tween<double>(begin: 0.8, end: 1.0).animate(animation),
-                      child: child,
-                    ),
-                  );
-                },
-                child: _isPieChart
-                    ? _buildPieChart(chartData, dateLabels, color, key: const ValueKey('pie'))
-                    : _buildBarChart(chartData, dateLabels, color, maxY, key: const ValueKey('bar')),
+              )
+              .animate()
+              .fadeIn(duration: 800.ms, curve: Curves.easeOut)
+              .slideY(begin: 0.1, duration: 800.ms, curve: Curves.easeOutCubic)
+              .shimmer(
+                delay: 400.ms,
+                duration: 2500.ms,
+                color: Colors.white.withValues(alpha: 0.4),
               ),
-            ),
-          ],
-        ),
-      ).animate()
-       .fadeIn(duration: 800.ms, curve: Curves.easeOut)
-       .slideY(begin: 0.1, duration: 800.ms, curve: Curves.easeOutCubic)
-       .shimmer(delay: 400.ms, duration: 2500.ms, color: Colors.white.withValues(alpha: 0.4)),
     );
   }
 
-  Widget _buildBarChart(List<BarChartGroupData> chartData, Map<int, String> dateLabels, Color color, double maxY, {Key? key}) {
-    return BarChart(
+  Widget _buildPointChart(
+    List<BarChartGroupData> chartData,
+    Map<int, String> dateLabels,
+    Color color,
+    double maxY, {
+    Key? key,
+  }) {
+    List<FlSpot> spots = chartData.map((group) {
+      return FlSpot(group.x.toDouble(), group.barRods.first.toY);
+    }).toList();
+
+    // LineChart strictly requires spots to be sorted by their X coordinates
+    spots.sort((a, b) => a.x.compareTo(b.x));
+
+    return LineChart(
       key: key,
-      BarChartData(
-        alignment: BarChartAlignment.spaceAround,
+      LineChartData(
+        minY: 0,
         maxY: maxY,
-        barTouchData: BarTouchData(
+        lineTouchData: LineTouchData(
           enabled: true,
-          touchTooltipData: BarTouchTooltipData(
+          touchTooltipData: LineTouchTooltipData(
             getTooltipColor: (_) => const Color(0xFF1A202C).withValues(alpha: 0.9),
-            getTooltipItem: (group, groupIndex, rod, rodIndex) {
-              return BarTooltipItem(
-                rod.toY.toInt().toString(),
-                const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              );
+            getTooltipItems: (touchedSpots) {
+              return touchedSpots.map((spot) {
+                return LineTooltipItem(
+                  spot.y.toInt().toString(),
+                  const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                );
+              }).toList();
             },
           ),
         ),
+        lineBarsData: [
+          LineChartBarData(
+            spots: spots,
+            isCurved: true,
+            color: color,
+            barWidth: 4,
+            isStrokeCapRound: true,
+            dotData: FlDotData(
+              show: true,
+              getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
+                radius: 6,
+                color: Colors.white,
+                strokeWidth: 3,
+                strokeColor: color,
+              ),
+            ),
+            belowBarData: BarAreaData(
+              show: true,
+              color: color.withValues(alpha: 0.15),
+            ),
+          ),
+        ],
         titlesData: FlTitlesData(
           show: true,
           bottomTitles: AxisTitles(
@@ -690,6 +811,7 @@ class _ChartCardState extends State<_ChartCard> {
               reservedSize: 42,
               getTitlesWidget: (value, meta) {
                 final label = dateLabels[value.toInt()] ?? '';
+                if (label.isEmpty) return const SizedBox.shrink();
                 return Padding(
                   padding: const EdgeInsets.only(top: 10.0, right: 8.0),
                   child: Transform.rotate(
@@ -743,23 +865,28 @@ class _ChartCardState extends State<_ChartCard> {
           ),
         ),
         borderData: FlBorderData(show: false),
-        barGroups: chartData,
       ),
-      swapAnimationDuration: const Duration(milliseconds: 1000),
-      swapAnimationCurve: Curves.easeOutCubic,
+      duration: const Duration(milliseconds: 1000),
+      curve: Curves.easeOutCubic,
     );
   }
 
-  Widget _buildPieChart(List<BarChartGroupData> chartData, Map<int, String> dateLabels, Color color, {Key? key}) {
+  Widget _buildPieChart(
+    List<BarChartGroupData> chartData,
+    Map<int, String> dateLabels,
+    Color color, {
+    Key? key,
+  }) {
     int totalValid = chartData.length;
-    
+
     final sections = chartData.asMap().entries.map((entry) {
       final index = entry.key;
       final val = entry.value.barRods.first.toY;
-      
-      final double lightness = 0.1 + ((index / (totalValid == 0 ? 1 : totalValid)) * 0.7);
+
+      final double lightness =
+          0.1 + ((index / (totalValid == 0 ? 1 : totalValid)) * 0.7);
       final sliceColor = Color.lerp(color, Colors.white, lightness) ?? color;
-      
+
       return PieChartSectionData(
         color: sliceColor,
         value: val,
@@ -781,7 +908,7 @@ class _ChartCardState extends State<_ChartCard> {
                 color: Colors.black.withValues(alpha: 0.08),
                 blurRadius: 4,
                 offset: const Offset(0, 2),
-              )
+              ),
             ],
           ),
           child: Text(
@@ -806,8 +933,8 @@ class _ChartCardState extends State<_ChartCard> {
         centerSpaceRadius: 30,
         sections: sections,
       ),
-      swapAnimationDuration: const Duration(milliseconds: 800),
-      swapAnimationCurve: Curves.easeOutCubic,
+      duration: const Duration(milliseconds: 800),
+      curve: Curves.easeOutCubic,
     );
   }
 }
