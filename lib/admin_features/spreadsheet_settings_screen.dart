@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/google_sheets_service.dart';
 import '../services/activity_log_service.dart';
+import '../widgets/aesthetic_loader.dart';
 
 class SpreadsheetSettingsScreen extends StatefulWidget {
   const SpreadsheetSettingsScreen({super.key});
@@ -197,14 +198,7 @@ class _SpreadsheetSettingsScreenState extends State<SpreadsheetSettingsScreen> {
                   ),
                 ),
                 child: _isSaving
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      )
+                    ? const AestheticLoader(size: 20, color: Colors.white)
                     : const Text(
                         'Save Configuration',
                         style: TextStyle(

@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'home_screen.dart';
 import 'admin_features/admin_homePage.dart';
 import 'services/google_sheets_service.dart';
+import 'widgets/aesthetic_loader.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -65,6 +66,18 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  String _getValue(Map<dynamic, dynamic> user, List<String> keys) {
+    for (final searchKey in keys) {
+      for (final k in user.keys) {
+        final keyStr = k.toString().trim().toLowerCase();
+        if (keyStr == searchKey.trim().toLowerCase()) {
+          return (user[k] ?? '').toString().trim();
+        }
+      }
+    }
+    return '';
+  }
+
   Future<void> _login() async {
     final loginId = _emailController.text.trim();
     final password = _passwordController.text;
@@ -93,19 +106,19 @@ class _LoginPageState extends State<LoginPage> {
         String matchedEmployeeId = '';
 
         for (final user in data) {
-          final cellEmployeeId = (user['Employee ID'] ?? '').trim();
-          final cellEmail = (user['Email ID'] ?? '').trim();
-          final cellPassword = (user['Password'] ?? '').trim();
+          final cellEmployeeId = _getValue(user, ['Employee ID', 'EmployeeID']);
+          final cellEmail = _getValue(user, ['Email ID', 'Email', 'EmailID']);
+          final cellPassword = _getValue(user, ['Password']);
 
           if (cellEmployeeId == loginId || cellEmail == loginId) {
             userFound = true;
             if (cellPassword == password) {
               passwordMatched = true;
               matchedEmployeeId = cellEmployeeId;
-              userPermissions = (user['Permissions'] ?? '').trim();
-              userAccessPermissions = (user['Access Permissions'] ?? '').trim();
-              userRole = (user['Role'] ?? user['Designation'] ?? '').trim();
-              assignedSheet = (user['Sheets'] ?? user['I'] ?? '').trim();
+              userPermissions = _getValue(user, ['Permissions', 'fields']);
+              userAccessPermissions = _getValue(user, ['Access Permissions', 'access_permissions', 'access permissions']);
+              userRole = _getValue(user, ['Role', 'Designation']);
+              assignedSheet = _getValue(user, ['Sheets', 'Sheet', 'I']);
             }
             break;
           }
@@ -502,17 +515,7 @@ class _LoginPageState extends State<LoginPage> {
                                         ),
                                       ),
                                       child: _isLoading
-                                          ? const SizedBox(
-                                              height: 24,
-                                              width: 24,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2.5,
-                                                valueColor:
-                                                    AlwaysStoppedAnimation<
-                                                      Color
-                                                    >(Colors.white),
-                                              ),
-                                            )
+                                          ? const AestheticLoader(size: 24, color: Colors.white)
                                           : const Text(
                                               'Sign In',
                                               style: TextStyle(

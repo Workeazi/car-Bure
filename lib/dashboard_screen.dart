@@ -6,8 +6,9 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 class DashboardScreen extends StatefulWidget {
   final List<Map<String, String>> dataList;
+  final List<String> permittedColumns;
 
-  const DashboardScreen({super.key, required this.dataList});
+  const DashboardScreen({super.key, required this.dataList, required this.permittedColumns});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -135,13 +136,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (actualKey.isNotEmpty) {
         final val = _parseDouble(item[actualKey] ?? '0');
 
-        String dateStr = item[dateKey] ?? '';
-        final parsedDate = _parseDate(dateStr);
-        if (parsedDate != null) {
-          dateStr = DateFormat('dd MMM').format(parsedDate);
-        } else {
-          if (dateStr.length > 6) {
-            dateStr = dateStr.substring(0, 6);
+        String dateStr = '';
+        if (dateKey.isNotEmpty) {
+          dateStr = item[dateKey] ?? '';
+          final parsedDate = _parseDate(dateStr);
+          if (parsedDate != null) {
+            dateStr = DateFormat('dd MMM').format(parsedDate);
+          } else {
+            if (dateStr.length > 6) {
+              dateStr = dateStr.substring(0, 6);
+            }
+          }
+        } else if (widget.permittedColumns.isNotEmpty) {
+          // Fallback to first permitted column for label if no date is present
+          final firstPerm = widget.permittedColumns.first;
+          final fallbackKey = item.keys.firstWhere(
+            (k) => k.toLowerCase().trim() == firstPerm.toLowerCase().trim(),
+            orElse: () => '',
+          );
+          if (fallbackKey.isNotEmpty) {
+            dateStr = item[fallbackKey] ?? '';
+            if (dateStr.length > 8) dateStr = dateStr.substring(0, 8);
           }
         }
 
@@ -185,197 +200,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     List<Map<String, String>> filteredList,
   ) {
     final chartInfo = _createChartData(dataKey, color, filteredList);
-    final chartData = chartInfo.barGroups;
-    final dateLabels = chartInfo.dateLabels;
-
-    if (chartData.isEmpty) {
-      return Container(
-        margin: const EdgeInsets.only(bottom: 24),
-        padding: const EdgeInsets.all(32),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.85),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.1),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Icon(Icons.bar_chart_rounded, color: color.withValues(alpha: 0.5), size: 48),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1A202C),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'No data available for this metric in the selected date range.',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Color(0xFF718096),
-                fontSize: 14,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Safely calculate MaxY
-    double maxY = 10;
-    if (chartData.isNotEmpty) {
-      final values = chartData.map((e) => e.barRods.first.toY).toList();
-      if (values.isNotEmpty) {
-        final maxVal = values.reduce((a, b) => a > b ? a : b);
-        if (maxVal > 0) maxY = maxVal * 1.2;
-      }
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 24),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.85),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.15),
-            blurRadius: 24,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(Icons.show_chart_rounded, color: color, size: 24),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF2D3748),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 32),
-          SizedBox(
-            height: 200,
-            child: BarChart(
-              BarChartData(
-                alignment: BarChartAlignment.spaceAround,
-                maxY: maxY,
-                barTouchData: BarTouchData(
-                  enabled: true,
-                  touchTooltipData: BarTouchTooltipData(
-                    getTooltipColor: (_) => const Color(0xFF1A202C).withValues(alpha: 0.9),
-                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                      return BarTooltipItem(
-                        rod.toY.toInt().toString(),
-                        const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                titlesData: FlTitlesData(
-                  show: true,
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 42,
-                      getTitlesWidget: (value, meta) {
-                        final label = dateLabels[value.toInt()] ?? '';
-                        return Padding(
-                          padding: const EdgeInsets.only(top: 10.0, right: 8.0),
-                          child: Transform.rotate(
-                            angle: -0.5,
-                            child: Text(
-                              label,
-                              style: const TextStyle(
-                                color: Color(0xFF718096),
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 40,
-                      getTitlesWidget: (value, meta) {
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8.0),
-                          child: Text(
-                            value.toInt().toString(),
-                            style: const TextStyle(
-                              color: Color(0xFF718096),
-                              fontSize: 10,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  rightTitles: AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  topTitles: AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                ),
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: false,
-                  horizontalInterval: maxY / 4 > 0 ? maxY / 4 : 10,
-                  getDrawingHorizontalLine: (value) => FlLine(
-                    color: Colors.grey.withValues(alpha: 0.15),
-                    strokeWidth: 1,
-                    dashArray: [5, 5],
-                  ),
-                ),
-                borderData: FlBorderData(show: false),
-                barGroups: chartData,
-              ),
-              duration: const Duration(milliseconds: 1000),
-              curve: Curves.easeOutCubic,
-            ),
-          ),
-        ],
-      ),
-      ).animate()
-       .fadeIn(duration: 800.ms, curve: Curves.easeOut)
-       .slideY(begin: 0.1, duration: 800.ms, curve: Curves.easeOutCubic)
-       .shimmer(delay: 400.ms, duration: 1500.ms, color: Colors.white.withValues(alpha: 0.3)),
+    return _ChartCard(
+      key: ValueKey(dataKey),
+      title: title,
+      color: color,
+      chartInfo: chartInfo,
     );
   }
 
@@ -408,6 +237,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final numericKeys = <String>{};
     final ignoreKeys = ['date', 'iv no', 'ch.no', 's.no', 'id'];
 
+    final permittedLower = widget.permittedColumns.map((c) => c.toLowerCase().trim()).toSet();
+
     // Take recent data to figure out which columns are numeric
     final recentData = filteredList.reversed.take(15).toList();
     for (final item in recentData) {
@@ -415,6 +246,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final key = entry.key.trim();
         final lowerKey = key.toLowerCase();
         if (ignoreKeys.any((ignore) => lowerKey == ignore)) continue;
+        
+        // Only allow dynamically plotting columns that the user is permitted to see
+        if (widget.permittedColumns.isNotEmpty && !permittedLower.contains(lowerKey)) continue;
         
         final val = _parseDouble(entry.value);
         if (val > 0) {
@@ -614,4 +448,366 @@ class ChartData {
   final Map<int, String> dateLabels;
 
   ChartData(this.barGroups, this.dateLabels);
+}
+
+class _ChartCard extends StatefulWidget {
+  final String title;
+  final Color color;
+  final ChartData chartInfo;
+
+  const _ChartCard({
+    super.key,
+    required this.title,
+    required this.color,
+    required this.chartInfo,
+  });
+
+  @override
+  State<_ChartCard> createState() => _ChartCardState();
+}
+
+class _ChartCardState extends State<_ChartCard> {
+  bool _isPieChart = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final chartData = widget.chartInfo.barGroups;
+    final dateLabels = widget.chartInfo.dateLabels;
+    final color = widget.color;
+    final title = widget.title;
+
+    if (chartData.isEmpty) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 24),
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.85),
+          borderRadius: BorderRadius.circular(32),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.9), width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: 0.1),
+              blurRadius: 30,
+              spreadRadius: -5,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Icon(Icons.bar_chart_rounded, color: color.withValues(alpha: 0.5), size: 48),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1A202C),
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'No data available for this metric in the selected date range.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Color(0xFF718096),
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Safely calculate MaxY
+    double maxY = 10;
+    if (chartData.isNotEmpty) {
+      final values = chartData.map((e) => e.barRods.first.toY).toList();
+      if (values.isNotEmpty) {
+        final maxVal = values.reduce((a, b) => a > b ? a : b);
+        if (maxVal > 0) maxY = maxVal * 1.2;
+      }
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.65),
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.9), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.15),
+            blurRadius: 30,
+            spreadRadius: -5,
+            offset: const Offset(0, 10),
+          ),
+        ],
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withValues(alpha: 0.9),
+            Colors.white.withValues(alpha: 0.4),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(Icons.show_chart_rounded, color: color, size: 24),
+                    ),
+                    const SizedBox(width: 14),
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF2D3748),
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                  ],
+                ),
+                // Premium Toggle
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GestureDetector(
+                        onTap: () => setState(() => _isPieChart = false),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeOutCubic,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: !_isPieChart ? Colors.white : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: !_isPieChart ? [
+                              BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))
+                            ] : [],
+                          ),
+                          child: Icon(Icons.bar_chart_rounded, size: 18, color: !_isPieChart ? color : Colors.grey.shade400),
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () => setState(() => _isPieChart = true),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeOutCubic,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: _isPieChart ? Colors.white : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: _isPieChart ? [
+                              BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))
+                            ] : [],
+                          ),
+                          child: Icon(Icons.pie_chart_rounded, size: 18, color: _isPieChart ? color : Colors.grey.shade400),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              height: 220,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 600),
+                switchInCurve: Curves.easeOutBack,
+                switchOutCurve: Curves.easeInCubic,
+                transitionBuilder: (Widget child, Animation<double> animation) {
+                  return FadeTransition(
+                    opacity: animation,
+                    child: ScaleTransition(
+                      scale: Tween<double>(begin: 0.8, end: 1.0).animate(animation),
+                      child: child,
+                    ),
+                  );
+                },
+                child: _isPieChart
+                    ? _buildPieChart(chartData, dateLabels, color, key: const ValueKey('pie'))
+                    : _buildBarChart(chartData, dateLabels, color, maxY, key: const ValueKey('bar')),
+              ),
+            ),
+          ],
+        ),
+      ).animate()
+       .fadeIn(duration: 800.ms, curve: Curves.easeOut)
+       .slideY(begin: 0.1, duration: 800.ms, curve: Curves.easeOutCubic)
+       .shimmer(delay: 400.ms, duration: 2500.ms, color: Colors.white.withValues(alpha: 0.4)),
+    );
+  }
+
+  Widget _buildBarChart(List<BarChartGroupData> chartData, Map<int, String> dateLabels, Color color, double maxY, {Key? key}) {
+    return BarChart(
+      key: key,
+      BarChartData(
+        alignment: BarChartAlignment.spaceAround,
+        maxY: maxY,
+        barTouchData: BarTouchData(
+          enabled: true,
+          touchTooltipData: BarTouchTooltipData(
+            getTooltipColor: (_) => const Color(0xFF1A202C).withValues(alpha: 0.9),
+            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              return BarTooltipItem(
+                rod.toY.toInt().toString(),
+                const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              );
+            },
+          ),
+        ),
+        titlesData: FlTitlesData(
+          show: true,
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 42,
+              getTitlesWidget: (value, meta) {
+                final label = dateLabels[value.toInt()] ?? '';
+                return Padding(
+                  padding: const EdgeInsets.only(top: 10.0, right: 8.0),
+                  child: Transform.rotate(
+                    angle: -0.5,
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        color: Color(0xFF718096),
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 40,
+              getTitlesWidget: (value, meta) {
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: Text(
+                    value.toInt().toString(),
+                    style: const TextStyle(
+                      color: Color(0xFF718096),
+                      fontSize: 10,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+        ),
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          horizontalInterval: maxY / 4 > 0 ? maxY / 4 : 10,
+          getDrawingHorizontalLine: (value) => FlLine(
+            color: Colors.grey.withValues(alpha: 0.15),
+            strokeWidth: 1,
+            dashArray: [5, 5],
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        barGroups: chartData,
+      ),
+      swapAnimationDuration: const Duration(milliseconds: 1000),
+      swapAnimationCurve: Curves.easeOutCubic,
+    );
+  }
+
+  Widget _buildPieChart(List<BarChartGroupData> chartData, Map<int, String> dateLabels, Color color, {Key? key}) {
+    int totalValid = chartData.length;
+    
+    final sections = chartData.asMap().entries.map((entry) {
+      final index = entry.key;
+      final val = entry.value.barRods.first.toY;
+      
+      final double lightness = 0.1 + ((index / (totalValid == 0 ? 1 : totalValid)) * 0.7);
+      final sliceColor = Color.lerp(color, Colors.white, lightness) ?? color;
+      
+      return PieChartSectionData(
+        color: sliceColor,
+        value: val,
+        title: '${val.toInt()}',
+        radius: 70 + (index % 2 == 0 ? 5.0 : 0.0),
+        titleStyle: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+          shadows: [Shadow(color: Colors.black26, blurRadius: 4)],
+        ),
+        badgeWidget: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              )
+            ],
+          ),
+          child: Text(
+            dateLabels[entry.value.x.toInt()] ?? '',
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+        ),
+        badgePositionPercentageOffset: 1.15,
+      );
+    }).toList();
+
+    return PieChart(
+      key: key,
+      PieChartData(
+        pieTouchData: PieTouchData(enabled: true),
+        borderData: FlBorderData(show: false),
+        sectionsSpace: 3,
+        centerSpaceRadius: 30,
+        sections: sections,
+      ),
+      swapAnimationDuration: const Duration(milliseconds: 800),
+      swapAnimationCurve: Curves.easeOutCubic,
+    );
+  }
 }

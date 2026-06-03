@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/google_sheets_service.dart';
 import '../services/activity_log_service.dart';
+import '../widgets/aesthetic_loader.dart';
 
 class SecuritySettingsScreen extends StatefulWidget {
   const SecuritySettingsScreen({super.key});
@@ -227,14 +228,7 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                   ),
                 ),
                 child: _isSaving
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      )
+                    ? const AestheticLoader(size: 20, color: Colors.white)
                     : const Text(
                         'Update Password',
                         style: TextStyle(

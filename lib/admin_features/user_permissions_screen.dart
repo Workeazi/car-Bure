@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/google_sheets_service.dart';
+import '../widgets/aesthetic_loader.dart';
 
 class UserPermissionsScreen extends StatefulWidget {
   const UserPermissionsScreen({super.key});
@@ -145,10 +146,7 @@ class _UserPermissionsScreenState extends State<UserPermissionsScreen> {
       body: SafeArea(
         child: _isLoading
             ? const Center(
-                child: CircularProgressIndicator(
-                  color: Colors.black,
-                  strokeWidth: 2,
-                ),
+                child: AestheticLoader(size: 60, color: Colors.black),
               )
             : RefreshIndicator(
                 onRefresh: _fetchUsers,

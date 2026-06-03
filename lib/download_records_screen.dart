@@ -6,6 +6,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'widgets/aesthetic_loader.dart';
 
 class DownloadRecordsScreen extends StatefulWidget {
   final List<Map<String, String>> dataList;
@@ -637,14 +638,7 @@ class _DownloadRecordsScreenState extends State<DownloadRecordsScreen> {
                           child: Container(
                             alignment: Alignment.center,
                             child: _isExporting
-                                ? const SizedBox(
-                                    height: 28,
-                                    width: 28,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 3,
-                                    ),
-                                  )
+                                ? const AestheticLoader(size: 28, color: Colors.white)
                                 : Row(
                                         mainAxisAlignment:
                                             MainAxisAlignment.center,

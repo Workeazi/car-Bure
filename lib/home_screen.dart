@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:ui';
 
 import 'services/google_sheets_service.dart';
 import 'record_details_screen.dart';
 import 'dashboard_screen.dart';
 import 'download_records_screen.dart';
 import 'profile_screen.dart';
+import 'widgets/aesthetic_loader.dart';
 
 class HomeScreen extends StatefulWidget {
   final String loginId;
@@ -37,6 +40,9 @@ class _HomeScreenState extends State<HomeScreen> {
   String _role = 'Member';
   int _currentIndex = 0;
 
+  List<String> _availableSheets = [];
+  String _selectedSheet = '';
+
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   bool _isSortDescending = true;
@@ -48,14 +54,106 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _accessPermissions = widget.accessPermissions;
     _role = widget.role.isNotEmpty ? widget.role : 'Member';
-    _permittedColumns = widget.permissions
-        .split(',')
-        .map((e) => e.trim())
+    _initializeSheets();
+    _parsePermissions();
+    _fetchSheetData();
+  }
+
+  void _initializeSheets() {
+    try {
+      String safePermsJson = widget.permissions
+          .replaceAll('“', '"')
+          .replaceAll('”', '"');
+      if (safePermsJson.trim().startsWith('[')) {
+        final List<dynamic> parsedPerms = jsonDecode(safePermsJson);
+        for (var item in parsedPerms) {
+          if (item is Map && item['sheet'] != null) {
+            String s = item['sheet'].toString().trim();
+            if (s.isNotEmpty && s.toLowerCase() != 'all') {
+              if (!_availableSheets.contains(s)) {
+                _availableSheets.add(s);
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("Error initializing sheets: \$e");
+    }
+
+    if (_availableSheets.isEmpty) {
+      _selectedSheet = _getSheetToFetchFallback();
+    } else {
+      _selectedSheet = _availableSheets.first;
+    }
+  }
+
+  String _getSheetToFetchFallback() {
+    String sheetToFetch = 'CarbonInput';
+    if (widget.role.toLowerCase() == 'kiln' &&
+        widget.assignedSheet.isNotEmpty) {
+      sheetToFetch = widget.assignedSheet;
+    }
+    return sheetToFetch;
+  }
+
+  void _parsePermissions() {
+    String currentSheet = _getSheetToFetch().trim().toLowerCase();
+
+    // Parse Access Permissions
+    _accessPermissions = widget.accessPermissions; // Fallback
+    try {
+      if (widget.accessPermissions.trim().startsWith('[')) {
+        final List<dynamic> parsedAccess = jsonDecode(widget.accessPermissions);
+        for (var item in parsedAccess) {
+          if (item is Map && item['sheet'] != null) {
+            String sheetName = item['sheet'].toString().trim().toLowerCase();
+            if (sheetName == currentSheet || sheetName == 'all') {
+              final perms =
+                  item['Access Permissions'] ??
+                  item['permissions'] ??
+                  item['access permissions'];
+              if (perms is List) {
+                _accessPermissions = perms.join(',');
+              }
+              break;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // Ignore JSON parse errors, fallback to raw string
+    }
+
+    // Parse Permitted Columns
+    List<String> columns = [];
+    try {
+      if (widget.permissions.trim().startsWith('[')) {
+        final List<dynamic> parsedPerms = jsonDecode(widget.permissions);
+        for (var item in parsedPerms) {
+          if (item is Map && item['sheet'] != null) {
+            String sheetName = item['sheet'].toString().trim().toLowerCase();
+            if (sheetName == currentSheet || sheetName == 'all') {
+              final fields =
+                  item['Permissions'] ?? item['fields'] ?? item['permissions'];
+              if (fields is List) {
+                columns = fields.map((e) => e.toString().trim()).toList();
+              }
+              break;
+            }
+          }
+        }
+      } else {
+        columns = widget.permissions.split(',').map((e) => e.trim()).toList();
+      }
+    } catch (e) {
+      columns = widget.permissions.split(',').map((e) => e.trim()).toList();
+    }
+
+    _permittedColumns = columns
         .where((e) => e.isNotEmpty && e.toLowerCase() != 'dashboard')
         .toList();
-    _fetchSheetData();
   }
 
   @override
@@ -65,11 +163,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   String _getSheetToFetch() {
-    String sheetToFetch = 'CarbonInput';
-    if (widget.role.toLowerCase() == 'kiln' && widget.assignedSheet.isNotEmpty) {
-      sheetToFetch = widget.assignedSheet;
+    if (_selectedSheet.isNotEmpty) {
+      return _selectedSheet;
     }
-    return sheetToFetch;
+    return _getSheetToFetchFallback();
   }
 
   Future<void> _fetchSheetData() async {
@@ -78,7 +175,9 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     try {
-      final parsedData = await GoogleSheetsService.fetchSheetData(sheetName: _getSheetToFetch());
+      final parsedData = await GoogleSheetsService.fetchSheetData(
+        sheetName: _getSheetToFetch(),
+      );
 
       if (parsedData != null) {
         if (mounted) {
@@ -140,7 +239,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       blurRadius: 20,
                       spreadRadius: -5,
                       offset: Offset(0, -10),
-                    )
+                    ),
                   ],
                 ),
                 child: Column(
@@ -160,20 +259,27 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     // Header Bar
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 8,
+                      ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const Text(
-                            'Edit Record',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontFamily: 'Outfit', // High-end typography feel
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF1E293B),
-                              letterSpacing: -0.5,
-                            ),
-                          ).animate().fadeIn(duration: 400.ms).slideX(begin: -0.1, curve: Curves.easeOutCubic),
+                                'Edit Record',
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  fontFamily:
+                                      'Outfit', // High-end typography feel
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF1E293B),
+                                  letterSpacing: -0.5,
+                                ),
+                              )
+                              .animate()
+                              .fadeIn(duration: 400.ms)
+                              .slideX(begin: -0.1, curve: Curves.easeOutCubic),
                           IconButton(
                             icon: Container(
                               padding: const EdgeInsets.all(8),
@@ -181,10 +287,17 @@ class _HomeScreenState extends State<HomeScreen> {
                                 color: Colors.red.withOpacity(0.1),
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.close_rounded, color: Colors.redAccent, size: 20),
+                              child: const Icon(
+                                Icons.close_rounded,
+                                color: Colors.redAccent,
+                                size: 20,
+                              ),
                             ),
                             onPressed: () => Navigator.pop(context),
-                          ).animate().scale(delay: 200.ms, curve: Curves.easeOutBack),
+                          ).animate().scale(
+                            delay: 200.ms,
+                            curve: Curves.easeOutBack,
+                          ),
                         ],
                       ),
                     ),
@@ -193,76 +306,95 @@ class _HomeScreenState extends State<HomeScreen> {
                     Expanded(
                       child: ListView.separated(
                         physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 16,
+                        ),
                         itemCount: editColumns.length,
-                        separatorBuilder: (context, index) => const SizedBox(height: 20),
+                        separatorBuilder: (context, index) =>
+                            const SizedBox(height: 20),
                         itemBuilder: (context, index) {
                           final col = editColumns[index];
                           final isDate = col.toLowerCase() == 'date';
                           return Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFF667EEA).withOpacity(0.04),
-                                  blurRadius: 15,
-                                  spreadRadius: 2,
-                                  offset: const Offset(0, 4),
-                                )
-                              ],
-                            ),
-                            child: TextField(
-                              controller: controllers[col],
-                              readOnly: isDate,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF334155),
-                              ),
-                              onTap: isDate
-                                  ? () => _showDatePicker(context, controllers[col]!)
-                                  : null,
-                              decoration: InputDecoration(
-                                labelText: col.toUpperCase(),
-                                labelStyle: const TextStyle(
-                                  color: Color(0xFF94A3B8),
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 12,
-                                  letterSpacing: 1.2,
-                                ),
-                                suffixIcon: isDate
-                                    ? Container(
-                                        margin: const EdgeInsets.all(8),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF667EEA).withOpacity(0.1),
-                                          borderRadius: BorderRadius.circular(10),
-                                        ),
-                                        child: const Icon(
-                                          Icons.calendar_month_rounded,
-                                          color: Color(0xFF667EEA),
-                                          size: 20,
-                                        ),
-                                      )
-                                    : null,
-                                floatingLabelBehavior: FloatingLabelBehavior.auto,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-                                border: OutlineInputBorder(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
                                   borderRadius: BorderRadius.circular(16),
-                                  borderSide: BorderSide.none,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(
+                                        0xFF667EEA,
+                                      ).withOpacity(0.04),
+                                      blurRadius: 15,
+                                      spreadRadius: 2,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
                                 ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: const BorderSide(
-                                    color: Color(0xFF667EEA),
-                                    width: 2,
+                                child: TextField(
+                                  controller: controllers[col],
+                                  readOnly: isDate,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF334155),
+                                  ),
+                                  onTap: isDate
+                                      ? () => _showDatePicker(
+                                          context,
+                                          controllers[col]!,
+                                        )
+                                      : null,
+                                  decoration: InputDecoration(
+                                    labelText: col.toUpperCase(),
+                                    labelStyle: const TextStyle(
+                                      color: Color(0xFF94A3B8),
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12,
+                                      letterSpacing: 1.2,
+                                    ),
+                                    suffixIcon: isDate
+                                        ? Container(
+                                            margin: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: const Color(
+                                                0xFF667EEA,
+                                              ).withOpacity(0.1),
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                            child: const Icon(
+                                              Icons.calendar_month_rounded,
+                                              color: Color(0xFF667EEA),
+                                              size: 20,
+                                            ),
+                                          )
+                                        : null,
+                                    floatingLabelBehavior:
+                                        FloatingLabelBehavior.auto,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 20,
+                                      vertical: 18,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      borderSide: BorderSide.none,
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      borderSide: const BorderSide(
+                                        color: Color(0xFF667EEA),
+                                        width: 2,
+                                      ),
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ),
-                          )
+                              )
                               .animate()
-                              .fadeIn(delay: (100 + (index * 50)).ms, duration: 400.ms)
+                              .fadeIn(
+                                delay: (100 + (index * 50)).ms,
+                                duration: 400.ms,
+                              )
                               .slideY(begin: 0.2, curve: Curves.easeOutQuart);
                         },
                       ),
@@ -270,48 +402,54 @@ class _HomeScreenState extends State<HomeScreen> {
                     // Action Button
                     Padding(
                       padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-                      child: InkWell(
-                        onTap: () async {
-                          final updatedData = <String, String>{};
-                          controllers.forEach((key, controller) {
-                            updatedData[key] = controller.text.trim();
-                          });
-                          Navigator.pop(context);
-                          await _saveEditAndRefresh(item, updatedData);
-                        },
-                        borderRadius: BorderRadius.circular(20),
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(vertical: 18),
-                          decoration: BoxDecoration(
+                      child:
+                          InkWell(
+                            onTap: () async {
+                              final updatedData = <String, String>{};
+                              controllers.forEach((key, controller) {
+                                updatedData[key] = controller.text.trim();
+                              });
+                              Navigator.pop(context);
+                              await _saveEditAndRefresh(item, updatedData);
+                            },
                             borderRadius: BorderRadius.circular(20),
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFF667EEA).withOpacity(0.4),
-                                blurRadius: 20,
-                                spreadRadius: 2,
-                                offset: const Offset(0, 8),
-                              )
-                            ],
-                          ),
-                          child: const Center(
-                            child: Text(
-                              'Save Changes',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                letterSpacing: 0.5,
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(vertical: 18),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20),
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    Color(0xFF667EEA),
+                                    Color(0xFF764BA2),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(
+                                      0xFF667EEA,
+                                    ).withOpacity(0.4),
+                                    blurRadius: 20,
+                                    spreadRadius: 2,
+                                    offset: const Offset(0, 8),
+                                  ),
+                                ],
+                              ),
+                              child: const Center(
+                                child: Text(
+                                  'Save Changes',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                        ),
-                      ).animate().scale(
+                          ).animate().scale(
                             delay: 400.ms,
                             duration: 500.ms,
                             curve: Curves.elasticOut,
@@ -339,7 +477,9 @@ class _HomeScreenState extends State<HomeScreen> {
       orElse: () => '',
     );
     if (ivKey.isEmpty) {
-      _showErrorDialog('Missing Key: Could not locate IV NO column identifier.');
+      _showErrorDialog(
+        'Missing Key: Could not locate IV NO column identifier.',
+      );
       return;
     }
 
@@ -426,7 +566,10 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const Divider(height: 1),
             ListTile(
-              leading: const Icon(Icons.arrow_downward, color: Color(0xFF667EEA)),
+              leading: const Icon(
+                Icons.arrow_downward,
+                color: Color(0xFF667EEA),
+              ),
               title: const Text('Updated Time: Newest First'),
               trailing: _isSortDescending
                   ? const Icon(Icons.check, color: Color(0xFF667EEA))
@@ -469,8 +612,18 @@ class _HomeScreenState extends State<HomeScreen> {
         final day = int.tryParse(parts[0]);
         if (day != null) {
           final months = [
-            'jan', 'feb', 'mar', 'apr', 'may', 'jun',
-            'jul', 'aug', 'sep', 'oct', 'nov', 'dec'
+            'jan',
+            'feb',
+            'mar',
+            'apr',
+            'may',
+            'jun',
+            'jul',
+            'aug',
+            'sep',
+            'oct',
+            'nov',
+            'dec',
           ];
           final monthIndex = months.indexOf(parts[1].toLowerCase());
           if (monthIndex != -1) {
@@ -492,8 +645,18 @@ class _HomeScreenState extends State<HomeScreen> {
   String _formatDateToString(DateTime dt) {
     final day = dt.day.toString().padLeft(2, '0');
     final months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     final monthStr = months[dt.month - 1];
     return '$day-$monthStr';
@@ -623,9 +786,9 @@ class _HomeScreenState extends State<HomeScreen> {
                               readOnly: isDate,
                               onTap: isDate
                                   ? () => _showDatePicker(
-                                        context,
-                                        controllers[col]!,
-                                      )
+                                      context,
+                                      controllers[col]!,
+                                    )
                                   : null,
                               decoration: InputDecoration(
                                 labelText: col,
@@ -725,14 +888,13 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete Record'),
-        content: Text('Are you sure you want to delete this record ($recordId)?'),
+        content: Text(
+          'Are you sure you want to delete this record ($recordId)?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: Colors.grey),
-            ),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
           ),
           TextButton(
             onPressed: () {
@@ -741,10 +903,7 @@ class _HomeScreenState extends State<HomeScreen> {
             },
             child: const Text(
               'Delete',
-              style: TextStyle(
-                color: Colors.red,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -760,7 +919,9 @@ class _HomeScreenState extends State<HomeScreen> {
       orElse: () => '',
     );
     if (ivKey.isEmpty) {
-      _showErrorDialog('Missing Identifier: Could not locate IV NO column identifier.');
+      _showErrorDialog(
+        'Missing Identifier: Could not locate IV NO column identifier.',
+      );
       return;
     }
 
@@ -853,10 +1014,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Text(
                 subtitle,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey,
-                ),
+                style: const TextStyle(fontSize: 14, color: Colors.grey),
               ),
             ],
           ),
@@ -866,20 +1024,48 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildCard(Map<String, String> item, int index) {
+    // Try to find IV No
     final ivKey = item.keys.firstWhere(
       (k) => k.toLowerCase() == 'iv no',
       orElse: () => '',
     );
-    final title = ivKey.isNotEmpty ? (item[ivKey] ?? '-') : '-';
+
+    String title = '-';
+    String titleKeyLower = 'iv no';
+    if (ivKey.isNotEmpty &&
+        _permittedColumns.any((c) => c.toLowerCase() == 'iv no')) {
+      title = item[ivKey] ?? '-';
+    } else if (_permittedColumns.isNotEmpty) {
+      // Dynamic fallback for title if IV No is not present or not permitted
+      final firstPerm = _permittedColumns.first;
+      final actualKey = item.keys.firstWhere(
+        (k) => k.toLowerCase().trim() == firstPerm.toLowerCase().trim(),
+        orElse: () => firstPerm,
+      );
+      title = item[actualKey] ?? '-';
+      titleKeyLower = firstPerm.toLowerCase().trim();
+    }
 
     final dateKey = item.keys.firstWhere(
       (k) => k.toLowerCase() == 'date',
       orElse: () => '',
     );
-    final dateVal = dateKey.isNotEmpty ? (item[dateKey] ?? '-') : '-';
+    String dateVal = '';
+    String dateKeyLower = 'date';
+    if (dateKey.isNotEmpty &&
+        _permittedColumns.any((c) => c.toLowerCase() == 'date')) {
+      final rawDate = (item[dateKey] ?? '').trim();
+      if (rawDate != '-') {
+        dateVal = rawDate;
+      }
+    }
 
     final displayFields = _permittedColumns
-        .where((col) => col.toLowerCase() != 'iv no' && col.toLowerCase() != 'date')
+        .where(
+          (col) =>
+              col.toLowerCase() != titleKeyLower &&
+              col.toLowerCase() != dateKeyLower,
+        )
         .toList();
 
     // Create a dynamic top margin to force a zigzag staggered effect
@@ -913,7 +1099,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.65),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.9), width: 1.2),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    width: 1.2,
+                  ),
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -927,26 +1116,43 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: Colors.transparent,
                   child: InkWell(
                     borderRadius: BorderRadius.circular(20),
-                    highlightColor: const Color(0xFF667EEA).withValues(alpha: 0.05),
+                    highlightColor: const Color(
+                      0xFF667EEA,
+                    ).withValues(alpha: 0.05),
                     splashColor: const Color(0xFF667EEA).withValues(alpha: 0.1),
                     onTap: () {
                       Navigator.push(
                         context,
                         PageRouteBuilder(
                           transitionDuration: const Duration(milliseconds: 400),
-                          reverseTransitionDuration: const Duration(milliseconds: 400),
-                          pageBuilder: (context, animation, secondaryAnimation) =>
-                              RecordDetailsScreen(record: item, permittedColumns: _permittedColumns),
-                          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                            return FadeTransition(
-                              opacity: animation,
-                              child: SlideTransition(
-                                position: Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero)
-                                    .animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
-                                child: child,
-                              ),
-                            );
-                          },
+                          reverseTransitionDuration: const Duration(
+                            milliseconds: 400,
+                          ),
+                          pageBuilder:
+                              (context, animation, secondaryAnimation) =>
+                                  RecordDetailsScreen(
+                                    record: item,
+                                    permittedColumns: _permittedColumns,
+                                  ),
+                          transitionsBuilder:
+                              (context, animation, secondaryAnimation, child) {
+                                return FadeTransition(
+                                  opacity: animation,
+                                  child: SlideTransition(
+                                    position:
+                                        Tween<Offset>(
+                                          begin: const Offset(0, 0.1),
+                                          end: Offset.zero,
+                                        ).animate(
+                                          CurvedAnimation(
+                                            parent: animation,
+                                            curve: Curves.easeOutCubic,
+                                          ),
+                                        ),
+                                    child: child,
+                                  ),
+                                );
+                              },
                         ),
                       );
                     },
@@ -962,7 +1168,9 @@ class _HomeScreenState extends State<HomeScreen> {
                               Container(
                                 padding: const EdgeInsets.all(6),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF667EEA).withValues(alpha: 0.1),
+                                  color: const Color(
+                                    0xFF667EEA,
+                                  ).withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: const Icon(
@@ -977,7 +1185,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      title,
+                                      title.isEmpty || title == '-'
+                                          ? 'Record'
+                                          : title,
                                       style: const TextStyle(
                                         fontSize: 15,
                                         fontWeight: FontWeight.w800,
@@ -985,77 +1195,103 @@ class _HomeScreenState extends State<HomeScreen> {
                                         letterSpacing: -0.3,
                                       ),
                                     ),
-                                    const SizedBox(height: 2),
-                                    Row(
-                                      children: [
-                                        Icon(Icons.calendar_today_rounded, size: 10, color: Colors.grey.shade600),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          dateVal,
-                                          style: TextStyle(
-                                            fontSize: 10,
+                                    if (dateVal.isNotEmpty) ...[
+                                      const SizedBox(height: 2),
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.calendar_today_rounded,
+                                            size: 10,
                                             color: Colors.grey.shade600,
-                                            fontWeight: FontWeight.w600,
                                           ),
-                                        ),
-                                      ],
-                                    ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            dateVal,
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              color: Colors.grey.shade600,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ),
                             ],
                           ),
                           const SizedBox(height: 12),
-                          Container(height: 1, color: Colors.grey.withValues(alpha: 0.15)),
+                          Container(
+                            height: 1,
+                            color: Colors.grey.withValues(alpha: 0.15),
+                          ),
                           const SizedBox(height: 12),
-                          
+
                           // Properties layout
                           Wrap(
                             spacing: 12,
                             runSpacing: 12,
-                            children: displayFields.map((col) {
-                              final actualKey = item.keys.firstWhere(
-                                (k) => k.toLowerCase().trim() == col.toLowerCase().trim(),
-                                orElse: () => col,
-                              );
-                              final rawVal = item[actualKey] ?? '-';
-                              final val = rawVal.isEmpty ? '-' : rawVal;
+                            children: displayFields
+                                .where((col) {
+                                  final actualKey = item.keys.firstWhere(
+                                    (k) =>
+                                        k.toLowerCase().trim() ==
+                                        col.toLowerCase().trim(),
+                                    orElse: () => col,
+                                  );
+                                  final rawVal = (item[actualKey] ?? '').trim();
+                                  return rawVal.isNotEmpty && rawVal != '-';
+                                })
+                                .map((col) {
+                                  final actualKey = item.keys.firstWhere(
+                                    (k) =>
+                                        k.toLowerCase().trim() ==
+                                        col.toLowerCase().trim(),
+                                    orElse: () => col,
+                                  );
+                                  final val = (item[actualKey] ?? '').trim();
 
-                              return SizedBox(
-                                width: double.infinity,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      col.toUpperCase(),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        fontSize: 9,
-                                        color: Colors.grey.shade500,
-                                        fontWeight: FontWeight.bold,
-                                        letterSpacing: 0.5,
-                                      ),
+                                  return SizedBox(
+                                    width: double.infinity,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          col.toUpperCase(),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 9,
+                                            color: Colors.grey.shade500,
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: 0.5,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          val,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w700,
+                                            color: Color(0xFF2D3748),
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      val,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w700,
-                                        color: Color(0xFF2D3748),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
+                                  );
+                                })
+                                .toList(),
                           ),
 
                           const SizedBox(height: 12),
-                          Container(height: 1, color: Colors.grey.withValues(alpha: 0.15)),
+                          Container(
+                            height: 1,
+                            color: Colors.grey.withValues(alpha: 0.15),
+                          ),
                           const SizedBox(height: 8),
 
                           // Lower actions bar
@@ -1066,7 +1302,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                 children: [
                                   if (_canWrite) ...[
                                     IconButton(
-                                      icon: const Icon(Icons.edit_rounded, color: Color(0xFF3B82F6)),
+                                      icon: const Icon(
+                                        Icons.edit_rounded,
+                                        color: Color(0xFF3B82F6),
+                                      ),
                                       iconSize: 18,
                                       padding: EdgeInsets.zero,
                                       visualDensity: VisualDensity.compact,
@@ -1077,7 +1316,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ],
                                   if (_canDelete) ...[
                                     IconButton(
-                                      icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFEF4444)),
+                                      icon: const Icon(
+                                        Icons.delete_outline_rounded,
+                                        color: Color(0xFFEF4444),
+                                      ),
                                       iconSize: 18,
                                       padding: EdgeInsets.zero,
                                       visualDensity: VisualDensity.compact,
@@ -1087,7 +1329,13 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ],
                                 ],
                               ),
-                              Icon(Icons.arrow_forward_ios_rounded, size: 10, color: const Color(0xFF667EEA).withValues(alpha: 0.8)),
+                              Icon(
+                                Icons.arrow_forward_ios_rounded,
+                                size: 10,
+                                color: const Color(
+                                  0xFF667EEA,
+                                ).withValues(alpha: 0.8),
+                              ),
                             ],
                           ),
                         ],
@@ -1104,50 +1352,78 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ── NAV ITEM ─────────────────────────────────────────────────────────────────
-  Widget _buildNavItem(int index, IconData icon, String label) {
+  Widget _buildDynamicPill(int index, IconData icon, String label, double activeWidth, double inactiveWidth) {
     final isSelected = _currentIndex == index;
     return GestureDetector(
-      onTap: () => setState(() => _currentIndex = index),
+      onTap: () {
+        if (_currentIndex != index) {
+          setState(() => _currentIndex = index);
+        }
+      },
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 400),
         curve: Curves.easeOutCubic,
-        padding: EdgeInsets.symmetric(
-          horizontal: isSelected ? 20 : 12,
-          vertical: 12,
-        ),
+        width: isSelected ? activeWidth : inactiveWidth,
+        height: 55,
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF667EEA).withValues(alpha: 0.15) : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
+          color: isSelected ? const Color(0xFF667EEA) : Colors.transparent,
+          borderRadius: BorderRadius.circular(27.5),
+          boxShadow: isSelected ? [
+            BoxShadow(
+              color: const Color(0xFF667EEA).withValues(alpha: 0.4),
+              blurRadius: 15,
+              spreadRadius: -2,
+              offset: const Offset(0, 6),
+            )
+          ] : [],
+          gradient: isSelected ? const LinearGradient(
+            colors: [Color(0xFF667EEA), Color(0xFF8B5CF6)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ) : null,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon,
-              color: isSelected ? const Color(0xFF667EEA) : Colors.grey.shade400,
-              size: 24),
-            AnimatedSize(
-              duration: const Duration(milliseconds: 400),
-              curve: Curves.easeOutCubic,
-              child: SizedBox(
-                width: isSelected ? null : 0,
-                child: Padding(
-                  padding: EdgeInsets.only(left: isSelected ? 8.0 : 0),
-                  child: Text(
-                    label,
-                    overflow: TextOverflow.clip,
-                    maxLines: 1,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF667EEA),
-                      letterSpacing: 0.2,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(27.5),
+          child: Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 350),
+                  curve: Curves.easeOutCubic,
+                  child: Icon(
+                    icon,
+                    color: isSelected ? Colors.white : Colors.grey.shade500,
+                    size: isSelected ? 22 : 26,
+                  ),
+                ),
+                Flexible(
+                  child: AnimatedSize(
+                    duration: const Duration(milliseconds: 350),
+                    curve: Curves.easeOutCubic,
+                    child: SizedBox(
+                      width: isSelected ? null : 0,
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 8.0),
+                        child: Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.clip,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -1160,15 +1436,21 @@ class _HomeScreenState extends State<HomeScreen> {
       if (_searchQuery.isEmpty) return true;
       final q = _searchQuery.toLowerCase();
       if (item.values.any((v) => v.toLowerCase().contains(q))) return true;
-      final dateKey = item.keys.firstWhere((k) => k.toLowerCase() == 'date', orElse: () => '');
+      final dateKey = item.keys.firstWhere(
+        (k) => k.toLowerCase() == 'date',
+        orElse: () => '',
+      );
       if (dateKey.isNotEmpty) {
         final dv = (item[dateKey] ?? '').toLowerCase();
         final nq = q.replaceAll('/', '-').replaceAll('.', '-');
-        if (dv.replaceAll('/', '-').replaceAll('.', '-').contains(nq)) return true;
+        if (dv.replaceAll('/', '-').replaceAll('.', '-').contains(nq))
+          return true;
       }
       return false;
     }).toList();
-    final displayList = _isSortDescending ? filteredList.reversed.toList() : filteredList;
+    final displayList = _isSortDescending
+        ? filteredList.reversed.toList()
+        : filteredList;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -1185,85 +1467,382 @@ class _HomeScreenState extends State<HomeScreen> {
               transitionBuilder: (child, animation) => FadeTransition(
                 opacity: animation,
                 child: SlideTransition(
-                  position: Tween<Offset>(begin: const Offset(0, 0.05), end: Offset.zero)
-                    .animate(animation),
+                  position: Tween<Offset>(
+                    begin: const Offset(0, 0.05),
+                    end: Offset.zero,
+                  ).animate(animation),
                   child: child,
                 ),
               ),
               child: _currentIndex == 1
-                ? DashboardScreen(key: const ValueKey('dash'), dataList: _dataList)
-                : _currentIndex == 2
+                  ? DashboardScreen(
+                      key: const ValueKey('dash'),
+                      dataList: _dataList,
+                      permittedColumns: _permittedColumns,
+                    )
+                  : _currentIndex == 2
                   ? DownloadRecordsScreen(
                       key: const ValueKey('dl'),
                       dataList: _dataList,
                       permittedColumns: _permittedColumns,
                     )
                   : _currentIndex == 3
-                    ? ProfileScreen(
-                        key: const ValueKey('prof'),
-                        loginId: widget.loginId,
-                        accessPermissions: _accessPermissions,
-                        permittedColumns: _permittedColumns,
-                        role: _role,
-                      )
-                    // ── RECORDS TAB (index 0) ──
-                    : RefreshIndicator(
-                        key: const ValueKey('records'),
-                        color: const Color(0xFF667EEA),
-                        onRefresh: _fetchSheetData,
-                        child: CustomScrollView(
-                          physics: const BouncingScrollPhysics(
-                            parent: AlwaysScrollableScrollPhysics()),
-                          slivers: [
-                            if (_isLoading)
-                              const SliverFillRemaining(
-                                child: Center(child: CircularProgressIndicator(
-                                  color: Color(0xFF667EEA))))
-                            else if (_permittedColumns.isEmpty)
-                              _buildEmptyState(Icons.person_off_outlined,
-                                'No Permissions',
-                                'No column permissions assigned.\nContact your administrator.')
-                            else if (!_canRead)
-                              _buildEmptyState(Icons.lock_outline,
-                                'Access Restricted',
-                                'You do not have read access.\nContact your administrator.')
-                            else ...[
-                              // Search bar
-                              if (_dataList.isNotEmpty)
-                                SliverToBoxAdapter(
-                                  child: Padding(
-                                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                                    child: Row(children: [
+                  ? ProfileScreen(
+                      key: const ValueKey('prof'),
+                      loginId: widget.loginId,
+                      accessPermissions: _accessPermissions,
+                      permittedColumns: _permittedColumns,
+                      role: _role,
+                    )
+                  // ── RECORDS TAB (index 0) ──
+                  : RefreshIndicator(
+                      key: const ValueKey('records'),
+                      color: const Color(0xFF667EEA),
+                      onRefresh: _fetchSheetData,
+                      child: CustomScrollView(
+                        physics: const BouncingScrollPhysics(
+                          parent: AlwaysScrollableScrollPhysics(),
+                        ),
+                        slivers: [
+                          if (_isLoading)
+                            const SliverFillRemaining(
+                              child: Center(
+                                child: AestheticLoader(size: 60),
+                              ),
+                            )
+                          else if (_permittedColumns.isEmpty)
+                            _buildEmptyState(
+                              Icons.person_off_outlined,
+                              'No Permissions',
+                              'No column permissions assigned.\nContact your administrator.',
+                            )
+                          else if (!_canRead)
+                            _buildEmptyState(
+                              Icons.lock_outline,
+                              'Access Restricted',
+                              'You do not have read access.\nContact your administrator.',
+                            )
+                          else ...[
+                            // Sheets Dropdown
+                            if (_availableSheets.length > 1)
+                              SliverToBoxAdapter(
+                                child:
+                                    Padding(
+                                          padding: const EdgeInsets.fromLTRB(
+                                            16,
+                                            16,
+                                            16,
+                                            0,
+                                          ),
+                                          child: GestureDetector(
+                                            onTap: () {
+                                              _showSheetSelectorDialog();
+                                            },
+                                            child: ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(24),
+                                              child: BackdropFilter(
+                                                filter: ImageFilter.blur(
+                                                  sigmaX: 15,
+                                                  sigmaY: 15,
+                                                ),
+                                                child: Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 20,
+                                                        vertical: 16,
+                                                      ),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.white
+                                                        .withValues(
+                                                          alpha: 0.65,
+                                                        ),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          24,
+                                                        ),
+                                                    border: Border.all(
+                                                      color: Colors.white
+                                                          .withValues(
+                                                            alpha: 0.9,
+                                                          ),
+                                                      width: 1.5,
+                                                    ),
+                                                    boxShadow: [
+                                                      BoxShadow(
+                                                        color:
+                                                            const Color(
+                                                              0xFF667EEA,
+                                                            ).withValues(
+                                                              alpha: 0.15,
+                                                            ),
+                                                        blurRadius: 30,
+                                                        spreadRadius: -5,
+                                                        offset: const Offset(
+                                                          0,
+                                                          10,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                    gradient: LinearGradient(
+                                                      colors: [
+                                                        Colors.white.withValues(
+                                                          alpha: 0.9,
+                                                        ),
+                                                        Colors.white.withValues(
+                                                          alpha: 0.4,
+                                                        ),
+                                                      ],
+                                                      begin: Alignment.topLeft,
+                                                      end:
+                                                          Alignment.bottomRight,
+                                                    ),
+                                                  ),
+                                                  child: Row(
+                                                    mainAxisAlignment:
+                                                        MainAxisAlignment
+                                                            .spaceBetween,
+                                                    children: [
+                                                      Row(
+                                                        children: [
+                                                          Container(
+                                                            padding:
+                                                                const EdgeInsets.all(
+                                                                  8,
+                                                                ),
+                                                            decoration: BoxDecoration(
+                                                              color:
+                                                                  const Color(
+                                                                    0xFF667EEA,
+                                                                  ).withValues(
+                                                                    alpha: 0.1,
+                                                                  ),
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
+                                                                    12,
+                                                                  ),
+                                                            ),
+                                                            child: const Icon(
+                                                              Icons
+                                                                  .table_chart_rounded,
+                                                              color: Color(
+                                                                0xFF667EEA,
+                                                              ),
+                                                              size: 20,
+                                                            ),
+                                                          ),
+                                                          const SizedBox(
+                                                            width: 16,
+                                                          ),
+                                                          Column(
+                                                            crossAxisAlignment:
+                                                                CrossAxisAlignment
+                                                                    .start,
+                                                            children: [
+                                                              Text(
+                                                                'Active Workspace',
+                                                                style: TextStyle(
+                                                                  fontSize: 11,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .bold,
+                                                                  color: Colors
+                                                                      .grey
+                                                                      .shade500,
+                                                                  letterSpacing:
+                                                                      0.5,
+                                                                ),
+                                                              ),
+                                                              const SizedBox(
+                                                                height: 2,
+                                                              ),
+                                                              Text(
+                                                                    _selectedSheet,
+                                                                    style: const TextStyle(
+                                                                      fontSize:
+                                                                          16,
+                                                                      fontWeight:
+                                                                          FontWeight
+                                                                              .w800,
+                                                                      color: Color(
+                                                                        0xFF2D3748,
+                                                                      ),
+                                                                    ),
+                                                                  )
+                                                                  .animate(
+                                                                    key: ValueKey(
+                                                                      _selectedSheet,
+                                                                    ),
+                                                                  )
+                                                                  .fadeIn()
+                                                                  .slideX(
+                                                                    begin: 0.1,
+                                                                  ),
+                                                            ],
+                                                          ),
+                                                        ],
+                                                      ),
+                                                      Container(
+                                                            padding:
+                                                                const EdgeInsets.all(
+                                                                  6,
+                                                                ),
+                                                            decoration: BoxDecoration(
+                                                              color:
+                                                                  Colors.white,
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
+                                                                    20,
+                                                                  ),
+                                                              border: Border.all(
+                                                                color: Colors
+                                                                    .white
+                                                                    .withValues(
+                                                                      alpha:
+                                                                          0.8,
+                                                                    ),
+                                                              ),
+                                                              boxShadow: [
+                                                                BoxShadow(
+                                                                  color:
+                                                                      const Color(
+                                                                        0xFF667EEA,
+                                                                      ).withValues(
+                                                                        alpha:
+                                                                            0.1,
+                                                                      ),
+                                                                  blurRadius: 8,
+                                                                  offset:
+                                                                      const Offset(
+                                                                        0,
+                                                                        4,
+                                                                      ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                            child: const Icon(
+                                                              Icons
+                                                                  .keyboard_arrow_down_rounded,
+                                                              color: Color(
+                                                                0xFF667EEA,
+                                                              ),
+                                                              size: 22,
+                                                            ),
+                                                          )
+                                                          .animate(
+                                                            onPlay:
+                                                                (
+                                                                  controller,
+                                                                ) => controller
+                                                                    .repeat(
+                                                                      reverse:
+                                                                          true,
+                                                                    ),
+                                                          )
+                                                          .moveY(
+                                                            begin: -2.5,
+                                                            end: 2.5,
+                                                            duration: 1500.ms,
+                                                            curve: Curves
+                                                                .easeInOut,
+                                                          ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        )
+                                        .animate()
+                                        .fadeIn(
+                                          duration: 600.ms,
+                                          curve: Curves.easeOut,
+                                        )
+                                        .slideY(
+                                          begin: -0.2,
+                                          curve: Curves.easeOutBack,
+                                        )
+                                        .shimmer(
+                                          duration: 2000.ms,
+                                          color: Colors.white.withValues(
+                                            alpha: 0.5,
+                                          ),
+                                          delay: 1000.ms,
+                                        ),
+                              ),
+                            // Search bar
+                            if (_dataList.isNotEmpty)
+                              SliverToBoxAdapter(
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    16,
+                                    16,
+                                    4,
+                                  ),
+                                  child: Row(
+                                    children: [
                                       Expanded(
                                         child: Container(
                                           decoration: BoxDecoration(
                                             color: Colors.white,
-                                            borderRadius: BorderRadius.circular(16),
-                                            boxShadow: [BoxShadow(
-                                              color: Colors.black.withValues(alpha: 0.04),
-                                              blurRadius: 12, offset: const Offset(0, 4))],
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black.withValues(
+                                                  alpha: 0.04,
+                                                ),
+                                                blurRadius: 12,
+                                                offset: const Offset(0, 4),
+                                              ),
+                                            ],
                                           ),
                                           child: TextField(
                                             controller: _searchController,
-                                            style: const TextStyle(fontSize: 15, color: Colors.black87),
+                                            style: const TextStyle(
+                                              fontSize: 15,
+                                              color: Colors.black87,
+                                            ),
                                             decoration: InputDecoration(
                                               hintText: 'Search records...',
-                                              hintStyle: const TextStyle(color: Colors.grey, fontSize: 14),
-                                              prefixIcon: const Icon(Icons.search_rounded,
-                                                color: Color(0xFF667EEA), size: 20),
-                                              suffixIcon: _searchQuery.isNotEmpty
-                                                ? IconButton(
-                                                    icon: const Icon(Icons.clear, size: 18),
-                                                    onPressed: () {
-                                                      _searchController.clear();
-                                                      setState(() => _searchQuery = '');
-                                                    })
-                                                : null,
+                                              hintStyle: const TextStyle(
+                                                color: Colors.grey,
+                                                fontSize: 14,
+                                              ),
+                                              prefixIcon: const Icon(
+                                                Icons.search_rounded,
+                                                color: Color(0xFF667EEA),
+                                                size: 20,
+                                              ),
+                                              suffixIcon:
+                                                  _searchQuery.isNotEmpty
+                                                  ? IconButton(
+                                                      icon: const Icon(
+                                                        Icons.clear,
+                                                        size: 18,
+                                                      ),
+                                                      onPressed: () {
+                                                        _searchController
+                                                            .clear();
+                                                        setState(
+                                                          () =>
+                                                              _searchQuery = '',
+                                                        );
+                                                      },
+                                                    )
+                                                  : null,
                                               border: InputBorder.none,
-                                              contentPadding: const EdgeInsets.symmetric(
-                                                horizontal: 16, vertical: 16),
+                                              contentPadding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 16,
+                                                    vertical: 16,
+                                                  ),
                                             ),
-                                            onChanged: (v) => setState(() => _searchQuery = v.trim()),
+                                            onChanged: (v) => setState(
+                                              () => _searchQuery = v.trim(),
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -1274,71 +1853,116 @@ class _HomeScreenState extends State<HomeScreen> {
                                           padding: const EdgeInsets.all(14),
                                           decoration: BoxDecoration(
                                             color: Colors.white,
-                                            borderRadius: BorderRadius.circular(16),
-                                            boxShadow: [BoxShadow(
-                                              color: Colors.black.withValues(alpha: 0.04),
-                                              blurRadius: 12, offset: const Offset(0, 4))],
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black.withValues(
+                                                  alpha: 0.04,
+                                                ),
+                                                blurRadius: 12,
+                                                offset: const Offset(0, 4),
+                                              ),
+                                            ],
                                           ),
                                           child: Icon(
                                             _isSortDescending
-                                              ? Icons.arrow_downward_rounded
-                                              : Icons.arrow_upward_rounded,
-                                            color: const Color(0xFF667EEA), size: 20),
+                                                ? Icons.arrow_downward_rounded
+                                                : Icons.arrow_upward_rounded,
+                                            color: const Color(0xFF667EEA),
+                                            size: 20,
+                                          ),
                                         ),
                                       ),
-                                    ]),
-                                  ).animate().fadeIn(duration: 400.ms).slideY(begin: -0.1),
-                                ),
-                              // Add button
-                              if (_canWrite)
-                                SliverToBoxAdapter(
-                                  child: Padding(
-                                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                                    child: ElevatedButton.icon(
-                                      onPressed: _showAddSheet,
-                                      icon: const Icon(Icons.add_circle_outline, size: 20),
-                                      label: const Text('Add New Record',
-                                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFF667EEA),
-                                        foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(vertical: 14),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(14)),
-                                        elevation: 0,
+                                    ],
+                                  ),
+                                ).animate().fadeIn(duration: 400.ms).slideY(begin: -0.1),
+                              ),
+                            // Add button
+                            if (_canWrite)
+                              SliverToBoxAdapter(
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    12,
+                                    16,
+                                    4,
+                                  ),
+                                  child: ElevatedButton.icon(
+                                    onPressed: _showAddSheet,
+                                    icon: const Icon(
+                                      Icons.add_circle_outline,
+                                      size: 20,
+                                    ),
+                                    label: const Text(
+                                      'Add New Record',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 15,
                                       ),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF667EEA),
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 14,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                      elevation: 0,
                                     ),
                                   ),
                                 ),
-                              // Cards or empty states
-                              if (_dataList.isEmpty)
-                                _buildEmptyState(Icons.inbox_outlined, 'No Data',
-                                  'No records were found in the sheet.')
-                              else if (displayList.isEmpty)
-                                _buildEmptyState(Icons.search_off_outlined, 'No Results Found',
-                                  'No records matching "$_searchQuery".')
-                              else
-                                SliverPadding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                  sliver: SliverMasonryGrid.count(
-                                    crossAxisCount: 2,
-                                    mainAxisSpacing: 12,
-                                    crossAxisSpacing: 12,
-                                    childCount: displayList.length,
-                                    itemBuilder: (ctx, i) {
-                                      return _buildCard(displayList[i], i)
-                                        .animate(delay: (i * 30).ms)
-                                        .fadeIn(duration: 400.ms, curve: Curves.easeOut)
-                                        .scaleXY(begin: 0.9, curve: Curves.easeOutBack, duration: 450.ms)
-                                        .slideY(begin: 0.05, curve: Curves.easeOutCubic);
-                                    },
-                                  ),
+                              ),
+                            // Cards or empty states
+                            if (_dataList.isEmpty)
+                              _buildEmptyState(
+                                Icons.inbox_outlined,
+                                'No Data',
+                                'No records were found in the sheet.',
+                              )
+                            else if (displayList.isEmpty)
+                              _buildEmptyState(
+                                Icons.search_off_outlined,
+                                'No Results Found',
+                                'No records matching "$_searchQuery".',
+                              )
+                            else
+                              SliverPadding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
                                 ),
-
-                            ],
+                                sliver: SliverMasonryGrid.count(
+                                  crossAxisCount: 2,
+                                  mainAxisSpacing: 12,
+                                  crossAxisSpacing: 12,
+                                  childCount: displayList.length,
+                                  itemBuilder: (ctx, i) {
+                                    return _buildCard(displayList[i], i)
+                                        .animate(delay: (i * 30).ms)
+                                        .fadeIn(
+                                          duration: 400.ms,
+                                          curve: Curves.easeOut,
+                                        )
+                                        .scaleXY(
+                                          begin: 0.9,
+                                          curve: Curves.easeOutBack,
+                                          duration: 450.ms,
+                                        )
+                                        .slideY(
+                                          begin: 0.05,
+                                          curve: Curves.easeOutCubic,
+                                        );
+                                  },
+                                ),
+                              ),
                           ],
-                        ),
+                        ],
                       ),
+                    ),
             ),
           ),
         ],
@@ -1347,38 +1971,253 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomNavigationBar: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.only(left: 20, right: 20, bottom: 24),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(24),
-            child: SizedBox(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          padding: const EdgeInsets.only(left: 20, right: 20, bottom: 28),
+          child: Builder(
+            builder: (context) {
+              final width = MediaQuery.of(context).size.width;
+              final totalUsable = width - 40 - 20; // 40 for outer padding, 20 for inner padding
+              final activeWidth = totalUsable * 0.45;
+              final inactiveWidth = totalUsable * 0.17; // 45 + 17*3 = 96%
+              
+              return Container(
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.8),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 1.5),
+                  borderRadius: BorderRadius.circular(37.5),
                   boxShadow: [
                     BoxShadow(
                       color: const Color(0xFF667EEA).withValues(alpha: 0.15),
                       blurRadius: 30,
+                      spreadRadius: -5,
                       offset: const Offset(0, 10),
                     ),
                   ],
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _buildNavItem(0, Icons.list_alt_rounded, 'Records'),
-                    _buildNavItem(1, Icons.bar_chart_rounded, 'Dash'),
-                    _buildNavItem(2, Icons.cloud_download_rounded, 'Export'),
-                    _buildNavItem(3, Icons.person_rounded, 'Profile'),
-                  ],
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(37.5),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+                    child: Container(
+                      height: 75,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(37.5),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildDynamicPill(0, Icons.list_alt_rounded, 'Records', activeWidth, inactiveWidth),
+                          _buildDynamicPill(1, Icons.bar_chart_rounded, 'Dash', activeWidth, inactiveWidth),
+                          _buildDynamicPill(2, Icons.cloud_download_rounded, 'Export', activeWidth, inactiveWidth),
+                          _buildDynamicPill(3, Icons.person_rounded, 'Profile', activeWidth, inactiveWidth),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
+              ).animate()
+               .fadeIn(duration: 800.ms, curve: Curves.easeOut)
+               .slideY(begin: 0.8, curve: Curves.easeOutBack, duration: 800.ms)
+               .shimmer(delay: 500.ms, duration: 2000.ms, color: Colors.white.withValues(alpha: 0.4));
+            },
+          ),
+        ),
+      ),
+
+    );
+  }
+
+  void _showSheetSelectorDialog() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Container(
+              padding: const EdgeInsets.only(
+                top: 16,
+                left: 24,
+                right: 24,
+                bottom: 40,
+              ),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC).withValues(alpha: 0.85),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(36),
+                ),
+                border: Border(
+                  top: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.8),
+                    width: 1.5,
+                  ),
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 24),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  const Text(
+                    'Switch Workspace',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF2D3748),
+                      letterSpacing: -0.5,
+                    ),
+                  ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.1),
+                  const SizedBox(height: 8),
+                  Text(
+                        'Select a data sheet to view and manage its records.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey.shade600,
+                        ),
+                      )
+                      .animate()
+                      .fadeIn(duration: 400.ms, delay: 100.ms)
+                      .slideY(begin: 0.1),
+                  const SizedBox(height: 24),
+                  ..._availableSheets.asMap().entries.map((entry) {
+                    final int idx = entry.key;
+                    final String sheet = entry.value;
+                    final bool isSelected = sheet == _selectedSheet;
+
+                    return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(20),
+                              onTap: () {
+                                Navigator.pop(ctx);
+                                if (!isSelected) {
+                                  setState(() {
+                                    _selectedSheet = sheet;
+                                    _dataList.clear();
+                                    _isLoading = true;
+                                  });
+                                  _parsePermissions();
+                                  _fetchSheetData();
+                                }
+                              },
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 400),
+                                curve: Curves.easeOutCubic,
+                                padding: const EdgeInsets.all(18),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? const Color(
+                                          0xFF667EEA,
+                                        ).withValues(alpha: 0.15)
+                                      : Colors.white.withValues(alpha: 0.6),
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? const Color(
+                                            0xFF667EEA,
+                                          ).withValues(alpha: 0.5)
+                                        : Colors.white.withValues(alpha: 0.8),
+                                    width: 1.5,
+                                  ),
+                                  boxShadow: isSelected
+                                      ? [
+                                          BoxShadow(
+                                            color: const Color(
+                                              0xFF667EEA,
+                                            ).withValues(alpha: 0.1),
+                                            blurRadius: 15,
+                                            offset: const Offset(0, 5),
+                                          ),
+                                        ]
+                                      : [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(
+                                              alpha: 0.02,
+                                            ),
+                                            blurRadius: 10,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                        ],
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? const Color(0xFF667EEA)
+                                            : Colors.grey.shade50,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(
+                                        isSelected
+                                            ? Icons.check_rounded
+                                            : Icons.table_chart_outlined,
+                                        color: isSelected
+                                            ? Colors.white
+                                            : Colors.grey.shade400,
+                                        size: 18,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Text(
+                                        sheet,
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: isSelected
+                                              ? FontWeight.w800
+                                              : FontWeight.w600,
+                                          color: isSelected
+                                              ? const Color(0xFF667EEA)
+                                              : const Color(0xFF2D3748),
+                                        ),
+                                      ),
+                                    ),
+                                    if (isSelected)
+                                      const Text(
+                                        'Active',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF667EEA),
+                                        ),
+                                      ).animate().fadeIn().scale(),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        )
+                        .animate()
+                        .fadeIn(duration: 400.ms, delay: (150 + idx * 50).ms)
+                        .slideX(begin: 0.05);
+                  }),
+                  const SizedBox(height: 16),
+                ],
               ),
             ),
           ),
-        ),
-      ).animate().fadeIn(duration: 600.ms, curve: Curves.easeOut).slideY(begin: 0.5, curve: Curves.easeOutCubic, duration: 600.ms),
+        );
+      },
     );
   }
 }
@@ -1420,8 +2259,12 @@ class _AnimatedGradientBackgroundState extends State<AnimatedGradientBackground>
           children: [
             Container(color: const Color(0xFFF8FAFC)),
             Positioned(
-              top: size.height * 0.1 + math.sin(_controller.value * 2 * math.pi) * 40,
-              left: size.width * 0.1 + math.cos(_controller.value * 2 * math.pi) * 40,
+              top:
+                  size.height * 0.1 +
+                  math.sin(_controller.value * 2 * math.pi) * 40,
+              left:
+                  size.width * 0.1 +
+                  math.cos(_controller.value * 2 * math.pi) * 40,
               child: Container(
                 width: 150,
                 height: 150,
@@ -1438,8 +2281,12 @@ class _AnimatedGradientBackgroundState extends State<AnimatedGradientBackground>
               ),
             ),
             Positioned(
-              bottom: size.height * 0.2 + math.cos(_controller.value * 2 * math.pi) * 50,
-              right: size.width * 0.1 + math.sin(_controller.value * 2 * math.pi) * 50,
+              bottom:
+                  size.height * 0.2 +
+                  math.cos(_controller.value * 2 * math.pi) * 50,
+              right:
+                  size.width * 0.1 +
+                  math.sin(_controller.value * 2 * math.pi) * 50,
               child: Container(
                 width: 150,
                 height: 150,
@@ -1456,8 +2303,11 @@ class _AnimatedGradientBackgroundState extends State<AnimatedGradientBackground>
               ),
             ),
             Positioned(
-              top: size.height * 0.4 + math.sin(_controller.value * math.pi) * 30,
-              left: size.width * 0.5 + math.cos(_controller.value * math.pi) * 30,
+              top:
+                  size.height * 0.4 +
+                  math.sin(_controller.value * math.pi) * 30,
+              left:
+                  size.width * 0.5 + math.cos(_controller.value * math.pi) * 30,
               child: Container(
                 width: 100,
                 height: 100,
