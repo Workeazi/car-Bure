@@ -90,7 +90,44 @@ class _RecordDetailsScreenState extends State<RecordDetailsScreen> {
     }
     if (dateKey.isNotEmpty) {
       final dateVal = widget.record[dateKey]?.trim() ?? '';
-      return dateVal.isNotEmpty ? dateVal : '-';
+      if (dateVal.isNotEmpty && dateVal != '-') {
+        try {
+          final parts = dateVal.replaceAll('.', '-').replaceAll('/', '-').split('-');
+          if (parts.length >= 2) {
+            final day = int.tryParse(parts[0]);
+            if (day != null) {
+              final months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+              final monthIndex = months.indexOf(parts[1].toLowerCase());
+              int month = 1;
+              int year = DateTime.now().year;
+              if (monthIndex != -1) {
+                month = monthIndex + 1;
+                if (parts.length >= 3) {
+                  year = int.tryParse(parts[2]) ?? year;
+                }
+              } else {
+                month = int.tryParse(parts[1]) ?? 1;
+                if (parts.length >= 3) {
+                  year = int.tryParse(parts[2]) ?? year;
+                }
+              }
+              
+              String d = day.toString().padLeft(2, '0');
+              String m = month.toString().padLeft(2, '0');
+              String y = (year % 100).toString().padLeft(2, '0');
+              return '$d/$m/$y';
+            }
+          }
+          
+          DateTime dt = DateTime.parse(dateVal);
+          String d = dt.day.toString().padLeft(2, '0');
+          String m = dt.month.toString().padLeft(2, '0');
+          String y = (dt.year % 100).toString().padLeft(2, '0');
+          return '$d/$m/$y';
+        } catch (_) {
+          return dateVal;
+        }
+      }
     }
     return '-';
   }
@@ -99,121 +136,78 @@ class _RecordDetailsScreenState extends State<RecordDetailsScreen> {
     try {
       final pdf = pw.Document();
 
+      final now = DateTime.now();
+      final generatedOn =
+          'Generated on: ${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}, ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
+
       pdf.addPage(
         pw.Page(
-          pageFormat: PdfPageFormat.a4,
+          pageFormat: PdfPageFormat.a3.landscape,
+          margin: const pw.EdgeInsets.all(24),
           build: (pw.Context ctx) {
-            return pw.Padding(
-              padding: const pw.EdgeInsets.all(32),
-              child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      pw.Text(
-                        'Carbar Record Detail',
-                        style: pw.TextStyle(
-                          fontSize: 24,
-                          fontWeight: pw.FontWeight.bold,
-                          color: PdfColor.fromHex('#4A5568'),
-                        ),
-                      ),
-                      pw.Text(
-                        _date,
-                        style: pw.TextStyle(
-                          fontSize: 14,
-                          color: PdfColor.fromHex('#718096'),
-                        ),
-                      ),
-                    ],
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  'CarBure - Custom Report',
+                  style: pw.TextStyle(
+                    fontSize: 20,
+                    fontWeight: pw.FontWeight.bold,
                   ),
-                  pw.SizedBox(height: 10),
-                  pw.Divider(
-                    thickness: 1.5,
-                    color: PdfColor.fromHex('#E2E8F0'),
+                ),
+                pw.SizedBox(height: 4),
+                pw.Text(
+                  generatedOn,
+                  style: const pw.TextStyle(
+                    fontSize: 10,
+                    color: PdfColors.grey700,
                   ),
-                  pw.SizedBox(height: 20),
-                  pw.Text(
-                    'Invoice No: $_title',
+                ),
+                pw.SizedBox(height: 20),
+                pw.TableHelper.fromTextArray(
+                  headers: widget.permittedColumns,
+                  data: [
+                    widget.permittedColumns.map((col) {
+                      final actualKey = widget.record.keys.firstWhere(
+                        (k) =>
+                            k.trim().toLowerCase() ==
+                            col.trim().toLowerCase(),
+                        orElse: () => col,
+                      );
+                      final val = widget.record[actualKey]?.trim() ?? '-';
+                      return _formatValueForPdf(col, val);
+                    }).toList(),
+                  ],
+                  headerStyle: pw.TextStyle(
+                    color: PdfColors.white,
+                    fontWeight: pw.FontWeight.bold,
+                    fontSize: 8,
+                  ),
+                  headerDecoration: const pw.BoxDecoration(
+                    color: PdfColor.fromInt(0xFF4A90E2),
+                  ),
+                  cellStyle: const pw.TextStyle(
+                    fontSize: 7,
+                    color: PdfColors.black,
+                  ),
+                  cellAlignment: pw.Alignment.centerLeft,
+                  cellPadding: const pw.EdgeInsets.all(4),
+                  oddRowDecoration: const pw.BoxDecoration(
+                    color: PdfColors.grey100,
+                  ),
+                ),
+                pw.SizedBox(height: 20),
+                pw.Center(
+                  child: pw.Text(
+                    'Page ${ctx.pageNumber} of ${ctx.pagesCount} - Generated automatically via CarBure User Portal.',
                     style: pw.TextStyle(
-                      fontSize: 18,
-                      fontWeight: pw.FontWeight.bold,
-                      color: PdfColor.fromHex('#2D3748'),
+                      fontSize: 8,
+                      fontStyle: pw.FontStyle.italic,
+                      color: PdfColors.grey500,
                     ),
                   ),
-                  pw.SizedBox(height: 20),
-                  pw.Table(
-                    border: pw.TableBorder.all(
-                      color: PdfColor.fromHex('#CBD5E0'),
-                      width: 1,
-                    ),
-                    columnWidths: {
-                      0: const pw.FlexColumnWidth(3),
-                      1: const pw.FlexColumnWidth(5),
-                    },
-                    children: [
-                      pw.TableRow(
-                        decoration: pw.BoxDecoration(
-                          color: PdfColor.fromHex('#F7FAFC'),
-                        ),
-                        children: [
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(8),
-                            child: pw.Text(
-                              'Field',
-                              style: pw.TextStyle(
-                                fontWeight: pw.FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(8),
-                            child: pw.Text(
-                              'Value',
-                              style: pw.TextStyle(
-                                fontWeight: pw.FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      ...widget.permittedColumns.map((col) {
-                        final actualKey = widget.record.keys.firstWhere(
-                          (k) =>
-                              k.trim().toLowerCase() ==
-                              col.trim().toLowerCase(),
-                          orElse: () => col,
-                        );
-                        final val = widget.record[actualKey]?.trim() ?? '-';
-                        return pw.TableRow(
-                          children: [
-                            pw.Padding(
-                              padding: const pw.EdgeInsets.all(8),
-                              child: pw.Text(col),
-                            ),
-                            pw.Padding(
-                              padding: const pw.EdgeInsets.all(8),
-                              child: pw.Text(_formatValueForPdf(col, val)),
-                            ),
-                          ],
-                        );
-                      }),
-                    ],
-                  ),
-                  pw.SizedBox(height: 40),
-                  pw.Center(
-                    child: pw.Text(
-                      'Generated automatically via Carbar User Portal.',
-                      style: pw.TextStyle(
-                        fontSize: 10,
-                        fontStyle: pw.FontStyle.italic,
-                        color: PdfColor.fromHex('#A0AEC0'),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             );
           },
         ),
@@ -338,26 +332,40 @@ class _RecordDetailsScreenState extends State<RecordDetailsScreen> {
                                         ),
                                       ),
                                     ),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.green.withValues(
-                                          alpha: 0.15,
+                                    if (_date != '-')
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 6,
                                         ),
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: const Text(
-                                        'Active',
-                                        style: TextStyle(
-                                          color: Colors.green,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF667EEA).withValues(alpha: 0.12),
+                                          borderRadius: BorderRadius.circular(10),
+                                          border: Border.all(
+                                            color: const Color(0xFF667EEA).withValues(alpha: 0.25),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(
+                                              Icons.calendar_month_rounded,
+                                              size: 13,
+                                              color: Color(0xFF667EEA),
+                                            ),
+                                            const SizedBox(width: 5),
+                                            Text(
+                                              _date,
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w900,
+                                                color: Color(0xFF667EEA),
+                                                letterSpacing: 0.2,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                    ),
                                   ],
                                 ),
                                 const SizedBox(height: 20),
@@ -369,32 +377,6 @@ class _RecordDetailsScreenState extends State<RecordDetailsScreen> {
                                     fontWeight: FontWeight.w900,
                                     letterSpacing: -1.0,
                                   ),
-                                ),
-                                const SizedBox(height: 12),
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(8),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFF7FAFC),
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: const Icon(
-                                        Icons.calendar_today_rounded,
-                                        color: Color(0xFF718096),
-                                        size: 16,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Text(
-                                      _date,
-                                      style: const TextStyle(
-                                        color: Color(0xFF4A5568),
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
                                 ),
                               ],
                             ),

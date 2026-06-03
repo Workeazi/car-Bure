@@ -30,43 +30,52 @@ class _DownloadRecordsScreenState extends State<DownloadRecordsScreen> {
 
   DateTime? _parseDate(String dateStr) {
     if (dateStr.isEmpty) return null;
+    final cleaned = dateStr.trim();
     
-    dateStr = dateStr.trim();
-    
+    // Attempt standard formats first
     final formats = [
-      'd-MMM-yy',
-      'dd-MMM-yy',
-      'd-MMM-yyyy',
-      'dd-MMM-yyyy',
-      'dd/MM/yyyy HH:mm:ss',
-      'dd/MM/yyyy',
-      'MM/dd/yyyy HH:mm:ss',
-      'MM/dd/yyyy',
-      'yyyy-MM-dd HH:mm:ss',
-      'yyyy-MM-dd',
-      'dd.MM.yyyy',
-      'dd-MM-yyyy',
+      'd-MMM-yy', 'dd-MMM-yy', 'd-MMM-yyyy', 'dd-MMM-yyyy',
+      'dd/MM/yyyy HH:mm:ss', 'dd/MM/yyyy', 'MM/dd/yyyy HH:mm:ss',
+      'MM/dd/yyyy', 'yyyy-MM-dd HH:mm:ss', 'yyyy-MM-dd',
+      'dd.MM.yyyy', 'dd-MM-yyyy', 'dd/MM/yy', 'd/M/yy'
     ];
-    
     for (final fmt in formats) {
       try {
-        return DateFormat(fmt).parse(dateStr);
+        return DateFormat(fmt).parse(cleaned);
       } catch (_) {}
     }
 
+    // Custom fallback for "DD-MMM" (e.g., 6-Apr) or "DD/MM/YY"
     try {
-      final parts = dateStr
-          .replaceAll('.', '/')
-          .replaceAll('-', '/')
-          .split('/');
-      if (parts.length >= 3) {
-        int day = int.parse(parts[0]);
-        int month = int.parse(parts[1]);
-        int year = int.parse(parts[2]);
-        if (year < 100) year += 2000;
-        return DateTime(year, month, day);
+      final parts = cleaned.replaceAll('.', '-').replaceAll('/', '-').split('-');
+      if (parts.length >= 2) {
+        final day = int.tryParse(parts[0]);
+        if (day != null) {
+          final months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+          final monthIndex = months.indexOf(parts[1].toLowerCase());
+          
+          if (monthIndex != -1) {
+            int year = DateTime.now().year;
+            if (parts.length >= 3) {
+              year = int.tryParse(parts[2]) ?? year;
+              if (year < 100) year += 2000;
+            }
+            return DateTime(year, monthIndex + 1, day);
+          } else {
+            // It might be a purely numeric date like "6-4-26" -> "6/4/26"
+            int month = int.tryParse(parts[1]) ?? 1;
+            int year = DateTime.now().year;
+            if (parts.length >= 3) {
+              year = int.tryParse(parts[2]) ?? year;
+              if (year < 100) year += 2000;
+            }
+            return DateTime(year, month, day);
+          }
+        }
       }
+      return DateTime.parse(cleaned);
     } catch (_) {}
+    
     return null;
   }
 
@@ -74,8 +83,9 @@ class _DownloadRecordsScreenState extends State<DownloadRecordsScreen> {
     return widget.dataList.where((item) {
       if (_startDate == null || _endDate == null) return true;
 
+      // Robust check with .trim() for " Date " columns
       final dateKey = item.keys.firstWhere(
-        (k) => k.toLowerCase() == 'date',
+        (k) => k.toLowerCase().trim() == 'date',
         orElse: () => '',
       );
       if (dateKey.isEmpty) return false;
@@ -200,7 +210,7 @@ class _DownloadRecordsScreenState extends State<DownloadRecordsScreen> {
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
                   pw.Text(
-                    'Carbar - Custom Report',
+                    'CarBure - Custom Report',
                     style: pw.TextStyle(
                       fontSize: 20,
                       fontWeight: pw.FontWeight.bold,
@@ -250,7 +260,7 @@ class _DownloadRecordsScreenState extends State<DownloadRecordsScreen> {
                   pw.SizedBox(height: 20),
                   pw.Center(
                     child: pw.Text(
-                      'Page ${ctx.pageNumber} of ${ctx.pagesCount} - Generated automatically via Carbar User Portal.',
+                      'Page ${ctx.pageNumber} of ${ctx.pagesCount} - Generated automatically via CarBure User Portal.',
                       style: pw.TextStyle(
                         fontSize: 8,
                         fontStyle: pw.FontStyle.italic,
@@ -267,7 +277,7 @@ class _DownloadRecordsScreenState extends State<DownloadRecordsScreen> {
 
       final output = await getTemporaryDirectory();
       final dateSuffix = DateFormat('yyyyMMdd').format(DateTime.now());
-      final file = File("${output.path}/Carbar_Export_$dateSuffix.pdf");
+      final file = File("${output.path}/CarBure_Export_$dateSuffix.pdf");
       await file.writeAsBytes(await pdf.save());
 
       final xFile = XFile(file.path, mimeType: 'application/pdf');

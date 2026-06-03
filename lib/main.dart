@@ -180,7 +180,9 @@ class _SplashScreenState extends State<SplashScreen> {
                 .shimmer(
                   delay: 400.ms,
                   duration: 800.ms,
-                  color: Colors.white.withValues(alpha: 0.6), // Soften the shimmer
+                  color: Colors.white.withValues(
+                    alpha: 0.6,
+                  ), // Soften the shimmer
                   angle: 1.2,
                   size: 3.0,
                   // Removed BlendMode.screen which causes the square artifact

@@ -4,6 +4,7 @@ import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'services/google_sheets_service.dart';
 import 'record_details_screen.dart';
@@ -40,6 +41,9 @@ class _HomeScreenState extends State<HomeScreen> {
   String _role = 'Member';
   int _currentIndex = 0;
 
+  late String _currentPermissions;
+  late String _currentAccessPermissions;
+
   List<String> _availableSheets = [];
   String _selectedSheet = '';
 
@@ -54,6 +58,8 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _currentPermissions = widget.permissions;
+    _currentAccessPermissions = widget.accessPermissions;
     _role = widget.role.isNotEmpty ? widget.role : 'Member';
     _initializeSheets();
     _parsePermissions();
@@ -102,10 +108,10 @@ class _HomeScreenState extends State<HomeScreen> {
     String currentSheet = _getSheetToFetch().trim().toLowerCase();
 
     // Parse Access Permissions
-    _accessPermissions = widget.accessPermissions; // Fallback
+    _accessPermissions = _currentAccessPermissions; // Fallback
     try {
-      if (widget.accessPermissions.trim().startsWith('[')) {
-        final List<dynamic> parsedAccess = jsonDecode(widget.accessPermissions);
+      if (_currentAccessPermissions.trim().startsWith('[')) {
+        final List<dynamic> parsedAccess = jsonDecode(_currentAccessPermissions);
         for (var item in parsedAccess) {
           if (item is Map && item['sheet'] != null) {
             String sheetName = item['sheet'].toString().trim().toLowerCase();
@@ -129,8 +135,8 @@ class _HomeScreenState extends State<HomeScreen> {
     // Parse Permitted Columns
     List<String> columns = [];
     try {
-      if (widget.permissions.trim().startsWith('[')) {
-        final List<dynamic> parsedPerms = jsonDecode(widget.permissions);
+      if (_currentPermissions.trim().startsWith('[')) {
+        final List<dynamic> parsedPerms = jsonDecode(_currentPermissions);
         for (var item in parsedPerms) {
           if (item is Map && item['sheet'] != null) {
             String sheetName = item['sheet'].toString().trim().toLowerCase();
@@ -145,10 +151,10 @@ class _HomeScreenState extends State<HomeScreen> {
           }
         }
       } else {
-        columns = widget.permissions.split(',').map((e) => e.trim()).toList();
+        columns = _currentPermissions.split(',').map((e) => e.trim()).toList();
       }
     } catch (e) {
-      columns = widget.permissions.split(',').map((e) => e.trim()).toList();
+      columns = _currentPermissions.split(',').map((e) => e.trim()).toList();
     }
 
     _permittedColumns = columns
@@ -173,6 +179,36 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted && _dataList.isEmpty) {
       setState(() => _isLoading = true);
     }
+
+    // Refresh user permissions immediately in the background
+    GoogleSheetsService.fetchSheet2Data().then((users) async {
+      if (users != null && mounted) {
+        for (final user in users) {
+          final cellEmployeeId = user['Employee ID'] ?? user['EmployeeID'] ?? '';
+          final cellEmail = user['Email ID'] ?? user['Email'] ?? user['EmailID'] ?? '';
+          
+          if (cellEmployeeId == widget.loginId || cellEmail == widget.loginId) {
+            final newPerms = user['Permissions'] ?? user['fields'] ?? '';
+            final newAccess = user['Access Permissions'] ?? user['access_permissions'] ?? user['access permissions'] ?? '';
+            
+            if (newPerms.toString() != _currentPermissions || newAccess.toString() != _currentAccessPermissions) {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setString('permissions', newPerms.toString());
+              await prefs.setString('accessPermissions', newAccess.toString());
+              
+              if (mounted) {
+                setState(() {
+                  _currentPermissions = newPerms.toString();
+                  _currentAccessPermissions = newAccess.toString();
+                  _parsePermissions();
+                });
+              }
+            }
+            break;
+          }
+        }
+      }
+    }).catchError((_) {});
 
     try {
       final parsedData = await GoogleSheetsService.fetchSheetData(
@@ -1074,16 +1110,23 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     final dateKey = item.keys.firstWhere(
-      (k) => k.toLowerCase() == 'date',
+      (k) => k.toLowerCase().trim() == 'date',
       orElse: () => '',
     );
     String dateVal = '';
     String dateKeyLower = 'date';
-    if (dateKey.isNotEmpty &&
-        _permittedColumns.any((c) => c.toLowerCase() == 'date')) {
+    if (dateKey.isNotEmpty) {
       final rawDate = (item[dateKey] ?? '').trim();
-      if (rawDate != '-') {
-        dateVal = rawDate;
+      if (rawDate != '-' && rawDate.isNotEmpty) {
+        try {
+          DateTime dt = _parseDateString(rawDate);
+          String d = dt.day.toString().padLeft(2, '0');
+          String m = dt.month.toString().padLeft(2, '0');
+          String y = (dt.year % 100).toString().padLeft(2, '0');
+          dateVal = '$d/$m/$y';
+        } catch (e) {
+          dateVal = rawDate;
+        }
       }
     }
 
@@ -1222,30 +1265,43 @@ class _HomeScreenState extends State<HomeScreen> {
                                         letterSpacing: -0.3,
                                       ),
                                     ),
-                                    if (dateVal.isNotEmpty) ...[
-                                      const SizedBox(height: 2),
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            Icons.calendar_today_rounded,
-                                            size: 10,
-                                            color: Colors.grey.shade600,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            dateVal,
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              color: Colors.grey.shade600,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
                                   ],
                                 ),
                               ),
+                              if (dateVal.isNotEmpty)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF667EEA).withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: const Color(0xFF667EEA).withValues(alpha: 0.25),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(
+                                        Icons.calendar_month_rounded,
+                                        size: 13,
+                                        color: Color(0xFF667EEA),
+                                      ),
+                                      const SizedBox(width: 5),
+                                      Text(
+                                        dateVal,
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w900,
+                                          color: Color(0xFF667EEA),
+                                          letterSpacing: 0.2,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                             ],
                           ),
                           const SizedBox(height: 12),
