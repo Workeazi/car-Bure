@@ -26,6 +26,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   DateTime? _parseDate(String dateStr) {
     if (dateStr.isEmpty) return null;
+    
+    dateStr = dateStr.trim();
+    
+    final formats = [
+      'd-MMM-yy',
+      'dd-MMM-yy',
+      'd-MMM-yyyy',
+      'dd-MMM-yyyy',
+      'dd/MM/yyyy HH:mm:ss',
+      'dd/MM/yyyy',
+      'MM/dd/yyyy HH:mm:ss',
+      'MM/dd/yyyy',
+      'yyyy-MM-dd HH:mm:ss',
+      'yyyy-MM-dd',
+      'dd.MM.yyyy',
+      'dd-MM-yyyy',
+    ];
+    
+    for (final fmt in formats) {
+      try {
+        return DateFormat(fmt).parse(dateStr);
+      } catch (_) {}
+    }
+
     try {
       final parts = dateStr
           .replaceAll('.', '/')
@@ -88,7 +112,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     double maxY = 10.0;
     for (final item in recentData) {
       final actualKey = item.keys.firstWhere(
-        (k) => k.toLowerCase().contains(key.toLowerCase()),
+        (k) => k.trim().toLowerCase().contains(key.trim().toLowerCase()),
         orElse: () => '',
       );
       if (actualKey.isNotEmpty) {
@@ -100,11 +124,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     for (final item in recentData) {
       final actualKey = item.keys.firstWhere(
-        (k) => k.toLowerCase().contains(key.toLowerCase()),
+        (k) => k.trim().toLowerCase().contains(key.trim().toLowerCase()),
         orElse: () => '',
       );
       final dateKey = item.keys.firstWhere(
-        (k) => k.toLowerCase() == 'date',
+        (k) => k.trim().toLowerCase() == 'date',
         orElse: () => '',
       );
 
@@ -112,11 +136,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final val = _parseDouble(item[actualKey] ?? '0');
 
         String dateStr = item[dateKey] ?? '';
-        // Simplify date for the axis (e.g., "12/05/2023" -> "12/05")
-        if (dateStr.length > 5 && dateStr.contains('/')) {
-          final parts = dateStr.split('/');
-          if (parts.length >= 2) {
-            dateStr = '${parts[0]}/${parts[1]}';
+        final parsedDate = _parseDate(dateStr);
+        if (parsedDate != null) {
+          dateStr = DateFormat('dd MMM').format(parsedDate);
+        } else {
+          if (dateStr.length > 6) {
+            dateStr = dateStr.substring(0, 6);
           }
         }
 
@@ -283,17 +308,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
-                      reservedSize: 30,
+                      reservedSize: 42,
                       getTitlesWidget: (value, meta) {
                         final label = dateLabels[value.toInt()] ?? '';
                         return Padding(
-                          padding: const EdgeInsets.only(top: 8.0),
-                          child: Text(
-                            label,
-                            style: const TextStyle(
-                              color: Color(0xFF718096),
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
+                          padding: const EdgeInsets.only(top: 10.0, right: 8.0),
+                          child: Transform.rotate(
+                            angle: -0.5,
+                            child: Text(
+                              label,
+                              style: const TextStyle(
+                                color: Color(0xFF718096),
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         );
@@ -373,6 +401,61 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ) &&
           itemDate.isBefore(endDateEnd);
     }).toList();
+  }
+  List<Widget> _buildDynamicCharts(List<Map<String, String>> filteredList) {
+    if (filteredList.isEmpty) return [];
+
+    final numericKeys = <String>{};
+    final ignoreKeys = ['date', 'iv no', 'ch.no', 's.no', 'id'];
+
+    // Take recent data to figure out which columns are numeric
+    final recentData = filteredList.reversed.take(15).toList();
+    for (final item in recentData) {
+      for (final entry in item.entries) {
+        final key = entry.key.trim();
+        final lowerKey = key.toLowerCase();
+        if (ignoreKeys.any((ignore) => lowerKey == ignore)) continue;
+        
+        final val = _parseDouble(entry.value);
+        if (val > 0) {
+          numericKeys.add(key);
+        }
+      }
+    }
+
+    final keysToChart = numericKeys.toList().take(5).toList();
+    
+    final colors = [
+      const Color(0xFF667EEA),
+      const Color(0xFF48BB78),
+      const Color(0xFFED8936),
+      const Color(0xFFE53E3E),
+      const Color(0xFF9F7AEA),
+    ];
+
+    List<Widget> charts = [];
+    for (int i = 0; i < keysToChart.length; i++) {
+      final key = keysToChart[i];
+      // Format title to Title Case
+      final title = key.split(' ').map((word) => word.isNotEmpty ? '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}' : '').join(' ');
+      charts.add(_buildChart(title, key, colors[i % colors.length], filteredList));
+    }
+    
+    if (charts.isEmpty) {
+      return [
+        const Padding(
+          padding: EdgeInsets.only(top: 40),
+          child: Center(
+            child: Text(
+              'No numeric data available for charts.',
+              style: TextStyle(color: Color(0xFF718096), fontSize: 16),
+            ),
+          ),
+        )
+      ];
+    }
+    
+    return charts;
   }
 
   @override
@@ -519,32 +602,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
           ).animate().fade(duration: 500.ms).scaleXY(begin: 0.9, end: 1.0, duration: 500.ms, curve: Curves.easeOutBack)
-        else ...[
-          _buildChart(
-            'Invoice Value Trend',
-            'INVOICE VALUE',
-            const Color(0xFF667EEA),
-            filteredList,
-          ),
-          _buildChart(
-            'Charcoal Weight (Kg)',
-            'CHARCOAL',
-            const Color(0xFF48BB78),
-            filteredList,
-          ),
-          _buildChart(
-            'Moisture Levels',
-            'MOISTURE',
-            const Color(0xFFED8936),
-            filteredList,
-          ),
-          _buildChart(
-            'Material Weight Difference',
-            'wt diff',
-            const Color(0xFFE53E3E),
-            filteredList,
-          ),
-        ].animate(interval: 150.ms).fade(duration: 600.ms).slideY(begin: 0.15, duration: 600.ms, curve: Curves.easeOutCubic),
+        else 
+          ..._buildDynamicCharts(filteredList).animate(interval: 150.ms).fade(duration: 600.ms).slideY(begin: 0.15, duration: 600.ms, curve: Curves.easeOutCubic),
       ],
     );
   }

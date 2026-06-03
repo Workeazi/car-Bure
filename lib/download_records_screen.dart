@@ -24,24 +24,48 @@ class DownloadRecordsScreen extends StatefulWidget {
 class _DownloadRecordsScreenState extends State<DownloadRecordsScreen> {
   DateTime? _startDate;
   DateTime? _endDate;
-  String _selectedExtension = '.pdf';
+
   bool _isExporting = false;
 
   DateTime? _parseDate(String dateStr) {
     if (dateStr.isEmpty) return null;
+    
+    dateStr = dateStr.trim();
+    
     final formats = [
+      'd-MMM-yy',
+      'dd-MMM-yy',
+      'd-MMM-yyyy',
+      'dd-MMM-yyyy',
       'dd/MM/yyyy HH:mm:ss',
       'dd/MM/yyyy',
       'MM/dd/yyyy HH:mm:ss',
       'MM/dd/yyyy',
       'yyyy-MM-dd HH:mm:ss',
       'yyyy-MM-dd',
+      'dd.MM.yyyy',
+      'dd-MM-yyyy',
     ];
+    
     for (final fmt in formats) {
       try {
-        return DateFormat(fmt).parseStrict(dateStr);
+        return DateFormat(fmt).parse(dateStr);
       } catch (_) {}
     }
+
+    try {
+      final parts = dateStr
+          .replaceAll('.', '/')
+          .replaceAll('-', '/')
+          .split('/');
+      if (parts.length >= 3) {
+        int day = int.parse(parts[0]);
+        int month = int.parse(parts[1]);
+        int year = int.parse(parts[2]);
+        if (year < 100) year += 2000;
+        return DateTime(year, month, day);
+      }
+    } catch (_) {}
     return null;
   }
 
@@ -124,13 +148,7 @@ class _DownloadRecordsScreenState extends State<DownloadRecordsScreen> {
       _isExporting = true;
     });
 
-    if (_selectedExtension == '.pdf') {
-      await _exportToPdf(filteredList);
-    } else if (_selectedExtension == '.doc') {
-      await _exportToDoc(filteredList);
-    } else {
-      await _exportToCsv(filteredList);
-    }
+    await _exportToPdf(filteredList);
 
     if (mounted) {
       setState(() {
@@ -139,27 +157,6 @@ class _DownloadRecordsScreenState extends State<DownloadRecordsScreen> {
     }
   }
 
-  String _formatValueForDocxOrCsv(String col, String val) {
-    if (val.isEmpty || val == '-') return val;
-    String cleanVal = val.replaceAll('\u20B9', '₹').replaceAll('₹', '₹');
-    final lowerCol = col.toLowerCase();
-    final isMonetary =
-        lowerCol.contains('value') ||
-        lowerCol.contains('amount') ||
-        lowerCol.contains('price') ||
-        lowerCol.contains('total') ||
-        lowerCol.contains('balance') ||
-        lowerCol.contains('paid');
-
-    if (isMonetary) {
-      if (!cleanVal.contains('₹') &&
-          !cleanVal.contains('Rs') &&
-          !cleanVal.contains('\$')) {
-        return '₹$cleanVal';
-      }
-    }
-    return cleanVal;
-  }
 
   String _formatValueForPdf(String col, String val) {
     if (val.isEmpty || val == '-') return val;
@@ -202,7 +199,7 @@ class _DownloadRecordsScreenState extends State<DownloadRecordsScreen> {
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
                   pw.Text(
-                    'WorkEazi - Custom Report',
+                    'Carbar - Custom Report',
                     style: pw.TextStyle(
                       fontSize: 20,
                       fontWeight: pw.FontWeight.bold,
@@ -222,10 +219,12 @@ class _DownloadRecordsScreenState extends State<DownloadRecordsScreen> {
                     data: chunk.map((record) {
                       return widget.permittedColumns.map((col) {
                         final actualKey = record.keys.firstWhere(
-                          (k) => k.toLowerCase() == col.toLowerCase(),
+                          (k) =>
+                              k.trim().toLowerCase() ==
+                              col.trim().toLowerCase(),
                           orElse: () => col,
                         );
-                        final val = record[actualKey] ?? '-';
+                        final val = record[actualKey]?.trim() ?? '-';
                         return _formatValueForPdf(col, val);
                       }).toList();
                     }).toList(),
@@ -250,7 +249,7 @@ class _DownloadRecordsScreenState extends State<DownloadRecordsScreen> {
                   pw.SizedBox(height: 20),
                   pw.Center(
                     child: pw.Text(
-                      'Page ${ctx.pageNumber} of ${ctx.pagesCount} - Generated automatically via WorkEazi User Portal.',
+                      'Page ${ctx.pageNumber} of ${ctx.pagesCount} - Generated automatically via Carbar User Portal.',
                       style: pw.TextStyle(
                         fontSize: 8,
                         fontStyle: pw.FontStyle.italic,
@@ -267,7 +266,7 @@ class _DownloadRecordsScreenState extends State<DownloadRecordsScreen> {
 
       final output = await getTemporaryDirectory();
       final dateSuffix = DateFormat('yyyyMMdd').format(DateTime.now());
-      final file = File("${output.path}/WorkEazi_Export_$dateSuffix.pdf");
+      final file = File("${output.path}/Carbar_Export_$dateSuffix.pdf");
       await file.writeAsBytes(await pdf.save());
 
       final xFile = XFile(file.path, mimeType: 'application/pdf');
@@ -277,200 +276,7 @@ class _DownloadRecordsScreenState extends State<DownloadRecordsScreen> {
     }
   }
 
-  Future<void> _exportToDoc(List<Map<String, String>> filteredList) async {
-    try {
-      final buffer = StringBuffer();
-      buffer.write(r'{\rtf1\ansi\deff0 {\fonttbl {\f0\fnil\fcharset0 Arial;}}');
-      buffer.write(
-        r'{\colortbl ;\red102\green126\blue234;\red74\green85\blue104;\red113\green128\blue150;}',
-      );
-      buffer.write(r'\fs36\b\cf1 WorkEazi Data Export\b0\fs24\cf0\par');
-      if (_startDate != null && _endDate != null) {
-        final start = DateFormat('MMM d, yyyy').format(_startDate!);
-        final end = DateFormat('MMM d, yyyy').format(_endDate!);
-        buffer.write(
-          r'\cf3 Date Range: '
-          '$start - $end'
-          r'\cf0\par\par',
-        );
-      } else {
-        buffer.write(r'\cf3 All Time\cf0\par\par');
-      }
 
-      for (var i = 0; i < filteredList.length; i++) {
-        final record = filteredList[i];
-        buffer.write(
-          r'\cf2\fs28\b Record ' + (i + 1).toString() + r':\b0\cf0\fs24\par',
-        );
-        buffer.write(r'--------------------------------------------------\par');
-        for (final col in widget.permittedColumns) {
-          final actualKey = record.keys.firstWhere(
-            (k) => k.toLowerCase() == col.toLowerCase(),
-            orElse: () => col,
-          );
-          final val = record[actualKey] ?? '-';
-          final formattedVal = _formatValueForDocxOrCsv(col, val);
-          buffer.write(r'\b ' + col + r':\b0  ' + formattedVal + r'\par');
-        }
-        buffer.write(
-          r'--------------------------------------------------\par\par',
-        );
-      }
-
-      buffer.write(r'\fs18\i Generated via WorkEazi User Portal.\i0\par}');
-
-      final output = await getTemporaryDirectory();
-      final dateSuffix = DateFormat('yyyyMMdd').format(DateTime.now());
-      final file = File("${output.path}/WorkEazi_Export_$dateSuffix.doc");
-      await file.writeAsString(buffer.toString());
-
-      final xFile = XFile(file.path, mimeType: 'application/msword');
-      await Share.shareXFiles([xFile], text: 'Word Document Export');
-    } catch (e) {
-      if (mounted) _showError('Word Document Export failed: $e');
-    }
-  }
-
-  Future<void> _exportToCsv(List<Map<String, String>> filteredList) async {
-    try {
-      final buffer = StringBuffer();
-
-      // Write headers
-      final headers = widget.permittedColumns
-          .map((col) => col.contains(',') ? '"$col"' : col)
-          .join(',');
-      buffer.writeln(headers);
-
-      // Write data
-      for (final record in filteredList) {
-        final rowValues = widget.permittedColumns
-            .map((col) {
-              final actualKey = record.keys.firstWhere(
-                (k) => k.toLowerCase() == col.toLowerCase(),
-                orElse: () => col,
-              );
-              final val = record[actualKey] ?? '-';
-              final formattedVal = _formatValueForDocxOrCsv(col, val);
-              return formattedVal.contains(',')
-                  ? '"$formattedVal"'
-                  : formattedVal;
-            })
-            .join(',');
-        buffer.writeln(rowValues);
-      }
-
-      final output = await getTemporaryDirectory();
-      final dateSuffix = DateFormat('yyyyMMdd').format(DateTime.now());
-      final file = File("${output.path}/WorkEazi_Export_$dateSuffix.csv");
-      await file.writeAsString(buffer.toString());
-
-      final xFile = XFile(file.path, mimeType: 'text/csv');
-      await Share.shareXFiles([xFile], text: 'CSV Export');
-    } catch (e) {
-      if (mounted) _showError('CSV Export failed: $e');
-    }
-  }
-
-  IconData _getExtensionIcon(String ext) {
-    switch (ext) {
-      case '.pdf':
-        return Icons.picture_as_pdf_outlined;
-      case '.doc':
-        return Icons.description_outlined;
-      case '.csv':
-        return Icons.table_chart_outlined;
-      default:
-        return Icons.insert_drive_file_outlined;
-    }
-  }
-
-  Color _getExtensionColor(String ext) {
-    switch (ext) {
-      case '.pdf':
-        return const Color(0xFF667EEA);
-      case '.doc':
-        return const Color(0xFF4A5568);
-      case '.csv':
-        return Colors.green;
-      default:
-        return Colors.blue;
-    }
-  }
-
-  Widget _buildFormatOption(String ext, String label) {
-    final isSelected = _selectedExtension == ext;
-    final color = _getExtensionColor(ext);
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedExtension = ext;
-        });
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 400),
-        curve: Curves.easeOutQuart,
-        padding: const EdgeInsets.symmetric(vertical: 24),
-        decoration: BoxDecoration(
-          color: isSelected ? color : Colors.white.withValues(alpha: 0.4),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: isSelected
-                ? color.withValues(alpha: 0.8)
-                : Colors.white.withValues(alpha: 0.8),
-            width: isSelected ? 2 : 1,
-          ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: color.withValues(alpha: 0.4),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
-                  ),
-                  BoxShadow(
-                    color: color.withValues(alpha: 0.2),
-                    blurRadius: 40,
-                    offset: const Offset(0, 20),
-                  ),
-                ]
-              : [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.03),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-        ),
-        child: Column(
-          children: [
-            AnimatedScale(
-              scale: isSelected ? 1.2 : 1.0,
-              duration: const Duration(milliseconds: 500),
-              curve: Curves.elasticOut,
-              child: AnimatedRotation(
-                turns: isSelected ? 0.0 : -0.02,
-                duration: const Duration(milliseconds: 400),
-                child: Icon(
-                  _getExtensionIcon(ext),
-                  color: isSelected ? Colors.white : const Color(0xFFA0AEC0),
-                  size: 38,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              label,
-              style: TextStyle(
-                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
-                color: isSelected ? Colors.white : const Color(0xFF718096),
-                fontSize: 16,
-                letterSpacing: 1.2,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -775,44 +581,6 @@ class _DownloadRecordsScreenState extends State<DownloadRecordsScreen> {
 
                 const SizedBox(height: 48),
 
-                const Text(
-                      'Select Format',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF2D3748),
-                        letterSpacing: -0.5,
-                      ),
-                    )
-                    .animate()
-                    .fade(duration: 800.ms, delay: 300.ms)
-                    .slideX(begin: -0.1),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildFormatOption(
-                        '.pdf',
-                        'PDF',
-                      ).animate().fade(delay: 400.ms).slideY(begin: 0.2),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _buildFormatOption(
-                        '.doc',
-                        'WORD',
-                      ).animate().fade(delay: 450.ms).slideY(begin: 0.2),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _buildFormatOption(
-                        '.csv',
-                        'CSV',
-                      ).animate().fade(delay: 500.ms).slideY(begin: 0.2),
-                    ),
-                  ],
-                ),
-
                 const SizedBox(height: 56),
 
                 // Export Button
@@ -888,7 +656,7 @@ class _DownloadRecordsScreenState extends State<DownloadRecordsScreen> {
                                           ),
                                           const SizedBox(width: 12),
                                           const Text(
-                                            'Export Now',
+                                            'Export to PDF',
                                             style: TextStyle(
                                               fontSize: 20,
                                               fontWeight: FontWeight.w900,

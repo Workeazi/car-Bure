@@ -11,10 +11,16 @@ class GoogleSheetsService {
   static Future<String?> editRow({
     required String ivNo,
     required Map<String, String> updates,
+    String? sheetName,
   }) async {
     try {
+      String url = '$baseUrl/editRow';
+      if (sheetName != null && sheetName.trim().isNotEmpty) {
+        url += '?sheetName=${Uri.encodeComponent(sheetName.trim())}';
+      }
+      
       final response = await http.post(
-        Uri.parse('$baseUrl/editRow'),
+        Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'ivNo': ivNo,
@@ -37,10 +43,16 @@ class GoogleSheetsService {
   static Future<String?> clearRowToNil({
     required String ivNo,
     required List<String> permittedColumns,
+    String? sheetName,
   }) async {
     try {
+      String url = '$baseUrl/clearRowToNil';
+      if (sheetName != null && sheetName.trim().isNotEmpty) {
+        url += '?sheetName=${Uri.encodeComponent(sheetName.trim())}';
+      }
+      
       final response = await http.post(
-        Uri.parse('$baseUrl/clearRowToNil'),
+        Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'ivNo': ivNo,
@@ -62,10 +74,16 @@ class GoogleSheetsService {
   // Returns null on success, error message on failure
   static Future<String?> addRow({
     required Map<String, String> rowData,
+    String? sheetName,
   }) async {
     try {
+      String url = '$baseUrl/addRow';
+      if (sheetName != null && sheetName.trim().isNotEmpty) {
+        url += '?sheetName=${Uri.encodeComponent(sheetName.trim())}';
+      }
+      
       final response = await http.post(
-        Uri.parse('$baseUrl/addRow'),
+        Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'rowData': rowData,
@@ -88,10 +106,20 @@ class GoogleSheetsService {
   static Future<List<Map<String, String>>?> fetchSheetData({String? sheetName}) async {
     try {
       String url = '$baseUrl/fetchSheetData';
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
       if (sheetName != null && sheetName.trim().isNotEmpty) {
-        url += '?sheetName=${Uri.encodeComponent(sheetName.trim())}';
+        url += '?sheetName=${Uri.encodeComponent(sheetName.trim())}&_t=$timestamp';
+      } else {
+        url += '?_t=$timestamp';
       }
-      final response = await http.get(Uri.parse(url));
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      );
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body)['data'] as List;
         return data.map((e) => Map<String, String>.from(e)).toList();
@@ -108,8 +136,16 @@ class GoogleSheetsService {
   /// Fetches data from the Kiln sheet (or any sheet by name via [sheetName]).
   static Future<List<Map<String, String>>?> fetchKilnData({String sheetName = 'Kiln A'}) async {
     try {
-      final url = '$baseUrl/fetchKilnData?sheetName=${Uri.encodeComponent(sheetName)}';
-      final response = await http.get(Uri.parse(url));
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final url = '$baseUrl/fetchKilnData?sheetName=${Uri.encodeComponent(sheetName)}&_t=$timestamp';
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      );
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body)['data'] as List;
         return data.map((e) => Map<String, String>.from(e)).toList();
@@ -144,7 +180,15 @@ class GoogleSheetsService {
 
   static Future<List<Map<String, String>>?> fetchSheet2Data() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/fetchSheet2Data'));
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final response = await http.get(
+        Uri.parse('$baseUrl/fetchSheet2Data?_t=$timestamp'),
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      );
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body)['data'] as List;
         return data.map((e) => Map<String, String>.from(e)).toList();

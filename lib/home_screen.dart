@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'dart:math' as math;
-import 'dart:ui' as ui;
+
 import 'services/google_sheets_service.dart';
 import 'record_details_screen.dart';
 import 'dashboard_screen.dart';
@@ -14,6 +14,7 @@ class HomeScreen extends StatefulWidget {
   final String permissions;
   final String accessPermissions;
   final String role;
+  final String assignedSheet;
 
   const HomeScreen({
     super.key,
@@ -21,6 +22,7 @@ class HomeScreen extends StatefulWidget {
     required this.permissions,
     required this.accessPermissions,
     this.role = 'Member',
+    this.assignedSheet = '',
   });
 
   @override
@@ -62,14 +64,21 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  String _getSheetToFetch() {
+    String sheetToFetch = 'CarbonInput';
+    if (widget.role.toLowerCase() == 'kiln' && widget.assignedSheet.isNotEmpty) {
+      sheetToFetch = widget.assignedSheet;
+    }
+    return sheetToFetch;
+  }
+
   Future<void> _fetchSheetData() async {
     if (mounted && _dataList.isEmpty) {
       setState(() => _isLoading = true);
     }
 
     try {
-      // Explicitly fetch from the 'CarbonInput' sheet as requested
-      final parsedData = await GoogleSheetsService.fetchSheetData(sheetName: 'CarbonInput');
+      final parsedData = await GoogleSheetsService.fetchSheetData(sheetName: _getSheetToFetch());
 
       if (parsedData != null) {
         if (mounted) {
@@ -110,10 +119,7 @@ class _HomeScreenState extends State<HomeScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      backgroundColor: Colors.transparent,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setSheetState) {
@@ -123,99 +129,193 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               child: Container(
                 constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(context).size.height * 0.8,
+                  maxHeight: MediaQuery.of(context).size.height * 0.85,
+                ),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 20,
+                      spreadRadius: -5,
+                      offset: Offset(0, -10),
+                    )
+                  ],
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    // Drag Handle
+                    Center(
+                      child: Container(
+                        margin: const EdgeInsets.only(top: 16, bottom: 8),
+                        height: 5,
+                        width: 48,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
                     // Header Bar
                     Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          IconButton(
-                            icon: const Icon(Icons.close),
-                            onPressed: () => Navigator.pop(context),
-                          ),
                           const Text(
                             'Edit Record',
                             style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
+                              fontSize: 24,
+                              fontFamily: 'Outfit', // High-end typography feel
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF1E293B),
+                              letterSpacing: -0.5,
                             ),
-                          ),
-                          TextButton(
-                            onPressed: () async {
-                              final updatedData = <String, String>{};
-                              controllers.forEach((key, controller) {
-                                updatedData[key] = controller.text.trim();
-                              });
-                              Navigator.pop(context);
-                              await _saveEditAndRefresh(item, updatedData);
-                            },
-                            child: const Text(
-                              'Save',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                                color: Color(0xFF667EEA),
+                          ).animate().fadeIn(duration: 400.ms).slideX(begin: -0.1, curve: Curves.easeOutCubic),
+                          IconButton(
+                            icon: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.red.withOpacity(0.1),
+                                shape: BoxShape.circle,
                               ),
+                              child: const Icon(Icons.close_rounded, color: Colors.redAccent, size: 20),
                             ),
-                          ),
+                            onPressed: () => Navigator.pop(context),
+                          ).animate().scale(delay: 200.ms, curve: Curves.easeOutBack),
                         ],
                       ),
                     ),
-                    const Divider(height: 1),
+                    const SizedBox(height: 8),
                     // Form fields
                     Expanded(
-                      child: ListView(
-                        padding: const EdgeInsets.all(16),
-                        children: editColumns.map((col) {
+                      child: ListView.separated(
+                        physics: const BouncingScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                        itemCount: editColumns.length,
+                        separatorBuilder: (context, index) => const SizedBox(height: 20),
+                        itemBuilder: (context, index) {
+                          final col = editColumns[index];
                           final isDate = col.toLowerCase() == 'date';
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 16),
+                          return Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF667EEA).withOpacity(0.04),
+                                  blurRadius: 15,
+                                  spreadRadius: 2,
+                                  offset: const Offset(0, 4),
+                                )
+                              ],
+                            ),
                             child: TextField(
                               controller: controllers[col],
                               readOnly: isDate,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF334155),
+                              ),
                               onTap: isDate
-                                  ? () => _showDatePicker(
-                                        context,
-                                        controllers[col]!,
-                                      )
+                                  ? () => _showDatePicker(context, controllers[col]!)
                                   : null,
                               decoration: InputDecoration(
-                                labelText: col,
-                                labelStyle: const TextStyle(color: Colors.grey),
+                                labelText: col.toUpperCase(),
+                                labelStyle: const TextStyle(
+                                  color: Color(0xFF94A3B8),
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
+                                  letterSpacing: 1.2,
+                                ),
                                 suffixIcon: isDate
-                                    ? const Icon(
-                                        Icons.calendar_today_outlined,
-                                        color: Color(0xFF667EEA),
+                                    ? Container(
+                                        margin: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF667EEA).withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: const Icon(
+                                          Icons.calendar_month_rounded,
+                                          color: Color(0xFF667EEA),
+                                          size: 20,
+                                        ),
                                       )
                                     : null,
-                                filled: true,
-                                fillColor: Colors.grey.shade50,
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(
-                                    color: Colors.grey.shade200,
-                                  ),
+                                floatingLabelBehavior: FloatingLabelBehavior.auto,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: BorderSide.none,
                                 ),
                                 focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                                  borderRadius: BorderRadius.circular(16),
                                   borderSide: const BorderSide(
                                     color: Color(0xFF667EEA),
+                                    width: 2,
                                   ),
                                 ),
                               ),
                             ),
-                          );
-                        }).toList(),
+                          )
+                              .animate()
+                              .fadeIn(delay: (100 + (index * 50)).ms, duration: 400.ms)
+                              .slideY(begin: 0.2, curve: Curves.easeOutQuart);
+                        },
                       ),
+                    ),
+                    // Action Button
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+                      child: InkWell(
+                        onTap: () async {
+                          final updatedData = <String, String>{};
+                          controllers.forEach((key, controller) {
+                            updatedData[key] = controller.text.trim();
+                          });
+                          Navigator.pop(context);
+                          await _saveEditAndRefresh(item, updatedData);
+                        },
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 18),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF667EEA).withOpacity(0.4),
+                                blurRadius: 20,
+                                spreadRadius: 2,
+                                offset: const Offset(0, 8),
+                              )
+                            ],
+                          ),
+                          child: const Center(
+                            child: Text(
+                              'Save Changes',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ).animate().scale(
+                            delay: 400.ms,
+                            duration: 500.ms,
+                            curve: Curves.elasticOut,
+                          ),
                     ),
                   ],
                 ),
@@ -251,17 +351,22 @@ class _HomeScreenState extends State<HomeScreen> {
       alignedRecord[key] = val;
     });
 
+    final actualUpdates = <String, String>{};
+
     updatedData.forEach((key, val) {
       final actualKey = alignedRecord.keys.firstWhere(
-        (k) => k.toLowerCase() == key.toLowerCase(),
+        (k) => k.toLowerCase().trim() == key.toLowerCase().trim(),
         orElse: () => key,
       );
+      if (alignedRecord[actualKey] != val) {
+        actualUpdates[actualKey] = val;
+      }
       alignedRecord[actualKey] = val;
     });
 
-    final targetIndex = _dataList.indexWhere(
-      (item) => (item[ivKey] ?? '') == targetIvValue,
-    );
+    if (actualUpdates.isEmpty) return;
+
+    final targetIndex = _dataList.indexOf(originalItem);
 
     if (targetIndex != -1) {
       setState(() {
@@ -272,7 +377,8 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final error = await GoogleSheetsService.editRow(
         ivNo: targetIvValue,
-        updates: alignedRecord,
+        updates: actualUpdates,
+        sheetName: _getSheetToFetch(),
       );
 
       if (error != null) {
@@ -283,12 +389,9 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       }
 
-      final parsedData = await GoogleSheetsService.fetchSheetData();
-      if (parsedData != null) {
-        setState(() {
-          _dataList = parsedData;
-        });
-      }
+      // Optimistic update is already applied in state.
+      // Removed immediate fetchSheetData() to prevent overwriting with stale data
+      // due to Google Sheets API consistency delays.
     } catch (e) {
       setState(() {
         _dataList = originalList;
@@ -586,7 +689,10 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
-      final error = await GoogleSheetsService.addRow(rowData: alignedRecord);
+      final error = await GoogleSheetsService.addRow(
+        rowData: alignedRecord,
+        sheetName: _getSheetToFetch(),
+      );
 
       if (error != null) {
         setState(() {
@@ -596,12 +702,8 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       }
 
-      final parsedData = await GoogleSheetsService.fetchSheetData();
-      if (parsedData != null) {
-        setState(() {
-          _dataList = parsedData;
-        });
-      }
+      // Optimistic update is already applied in state.
+      // Removed immediate fetchSheetData() to prevent overwriting with stale data.
     } catch (e) {
       setState(() {
         _dataList = originalList;
@@ -672,6 +774,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final error = await GoogleSheetsService.clearRowToNil(
         ivNo: targetIvValue,
         permittedColumns: _permittedColumns,
+        sheetName: _getSheetToFetch(),
       );
 
       if (error != null) {
@@ -682,12 +785,8 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       }
 
-      final parsedData = await GoogleSheetsService.fetchSheetData();
-      if (parsedData != null) {
-        setState(() {
-          _dataList = parsedData;
-        });
-      }
+      // Optimistic update is already applied in state.
+      // Removed immediate fetchSheetData() to prevent overwriting with stale data.
       _showSuccessDialog('Record deleted successfully.');
     } catch (e) {
       setState(() {
@@ -809,8 +908,7 @@ class _HomeScreenState extends State<HomeScreen> {
           // Main Card
           ClipRRect(
             borderRadius: BorderRadius.circular(20),
-            child: BackdropFilter(
-              filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: SizedBox(
               child: Container(
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.65),
@@ -917,7 +1015,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             runSpacing: 12,
                             children: displayFields.map((col) {
                               final actualKey = item.keys.firstWhere(
-                                (k) => k.toLowerCase() == col.toLowerCase(),
+                                (k) => k.toLowerCase().trim() == col.toLowerCase().trim(),
                                 orElse: () => col,
                               );
                               final rawVal = item[actualKey] ?? '-';
@@ -1252,8 +1350,7 @@ class _HomeScreenState extends State<HomeScreen> {
           padding: const EdgeInsets.only(left: 20, right: 20, bottom: 24),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(24),
-            child: BackdropFilter(
-              filter: ui.ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+            child: SizedBox(
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 decoration: BoxDecoration(

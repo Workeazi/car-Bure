@@ -1,5 +1,5 @@
-// ignore_for_file: file_names
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../login_page.dart';
 import 'user_permissions_screen.dart';
 import 'spreadsheet_settings_screen.dart';
@@ -94,11 +94,15 @@ class AdminHomePage extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout_outlined, color: Colors.redAccent),
-            onPressed: () {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const LoginPage()),
-              );
+            onPressed: () async {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.clear();
+              if (context.mounted) {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LoginPage()),
+                );
+              }
             },
           ),
         ],

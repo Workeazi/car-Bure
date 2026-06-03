@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'login_page.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -195,12 +196,16 @@ class ProfileScreen extends StatelessWidget {
                 ],
               ),
               child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (context) => const LoginPage()),
-                    (route) => false,
-                  );
+                onPressed: () async {
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.clear();
+                  if (context.mounted) {
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (context) => const LoginPage()),
+                      (route) => false,
+                    );
+                  }
                 },
                 style: ElevatedButton.styleFrom(
                   padding: EdgeInsets.zero,

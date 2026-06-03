@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'dart:ui' as ui;
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'package:http/http.dart' as http;
 import 'home_screen.dart';
 import 'admin_features/admin_homePage.dart';
@@ -88,6 +89,7 @@ class _LoginPageState extends State<LoginPage> {
         String userPermissions = '';
         String userAccessPermissions = '';
         String userRole = '';
+        String assignedSheet = '';
         String matchedEmployeeId = '';
 
         for (final user in data) {
@@ -103,6 +105,7 @@ class _LoginPageState extends State<LoginPage> {
               userPermissions = (user['Permissions'] ?? '').trim();
               userAccessPermissions = (user['Access Permissions'] ?? '').trim();
               userRole = (user['Role'] ?? user['Designation'] ?? '').trim();
+              assignedSheet = (user['Sheets'] ?? user['I'] ?? '').trim();
             }
             break;
           }
@@ -113,6 +116,15 @@ class _LoginPageState extends State<LoginPage> {
         } else if (!passwordMatched) {
           _showErrorDialog('Login Failed', 'Incorrect password.');
         } else {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool('isLoggedIn', true);
+          await prefs.setString('loginId', loginId);
+          await prefs.setString('permissions', userPermissions);
+          await prefs.setString('accessPermissions', userAccessPermissions);
+          await prefs.setString('role', userRole);
+          await prefs.setString('assignedSheet', assignedSheet);
+          await prefs.setString('employeeId', matchedEmployeeId);
+
           if (mounted) {
             if (matchedEmployeeId.toUpperCase() == 'ADMIN001') {
               Navigator.pushReplacement(
@@ -128,6 +140,7 @@ class _LoginPageState extends State<LoginPage> {
                     permissions: userPermissions,
                     accessPermissions: userAccessPermissions,
                     role: userRole,
+                    assignedSheet: assignedSheet,
                   ),
                 ),
               );
@@ -265,7 +278,10 @@ class _LoginPageState extends State<LoginPage> {
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.8),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.9), width: 1.5),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.9),
+          width: 1.5,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -288,7 +304,11 @@ class _LoginPageState extends State<LoginPage> {
             color: Colors.grey.shade500,
             fontWeight: FontWeight.w600,
           ),
-          prefixIcon: Icon(icon, color: const Color(0xFF667EEA).withValues(alpha: 0.8), size: 22),
+          prefixIcon: Icon(
+            icon,
+            color: const Color(0xFF667EEA).withValues(alpha: 0.8),
+            size: 22,
+          ),
           suffixIcon: isPassword
               ? IconButton(
                   icon: Icon(
@@ -325,181 +345,202 @@ class _LoginPageState extends State<LoginPage> {
             child: Center(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(32),
-                    child: BackdropFilter(
-                      filter: ui.ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                      child: Container(
-                        padding: const EdgeInsets.all(32.0),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.65),
+                child:
+                    ClipRRect(
                           borderRadius: BorderRadius.circular(32),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.9),
-                            width: 1.5,
-                          ),
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              Colors.white.withValues(alpha: 0.9),
-                              Colors.white.withValues(alpha: 0.5),
-                            ],
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF667EEA).withValues(alpha: 0.15),
-                              blurRadius: 30,
-                              offset: const Offset(0, 15),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            // Logo
-                            Center(
-                              child: Container(
-                                width: 90,
-                                height: 90,
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(24),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFF667EEA).withValues(alpha: 0.15),
-                                      blurRadius: 20,
-                                      offset: const Offset(0, 10),
-                                    ),
+                          child: SizedBox(
+                            child: Container(
+                              padding: const EdgeInsets.all(32.0),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.65),
+                                borderRadius: BorderRadius.circular(32),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                  width: 1.5,
+                                ),
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Colors.white.withValues(alpha: 0.9),
+                                    Colors.white.withValues(alpha: 0.5),
                                   ],
                                 ),
-                                padding: const EdgeInsets.all(16),
-                                child: Image.asset('assets/logo.png'),
-                              ),
-                            ),
-                            const SizedBox(height: 32),
-
-                            // Welcome Text
-                            const Text(
-                              'Welcome Back',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 32,
-                                fontWeight: FontWeight.w900,
-                                color: Color(0xFF2D3748),
-                                letterSpacing: -0.5,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Sign in to continue',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                            const SizedBox(height: 40),
-
-                            // Fields
-                            _buildTextField(
-                              controller: _emailController,
-                              label: 'Email or Employee ID',
-                              icon: Icons.email_outlined,
-                            ),
-                            const SizedBox(height: 16),
-                            _buildTextField(
-                              controller: _passwordController,
-                              label: 'Password',
-                              icon: Icons.lock_outline_rounded,
-                              isPassword: true,
-                              isVisible: _isPasswordVisible,
-                              onVisibilityChanged: () {
-                                setState(() {
-                                  _isPasswordVisible = !_isPasswordVisible;
-                                });
-                              },
-                            ),
-                            const SizedBox(height: 12),
-
-                            // Forgot Password
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton(
-                                onPressed: _isLoading ? null : _forgotPassword,
-                                style: TextButton.styleFrom(
-                                  padding: EdgeInsets.zero,
-                                  minimumSize: Size.zero,
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                ),
-                                child: const Text(
-                                  'Forgot Password?',
-                                  style: TextStyle(
-                                    color: Color(0xFF667EEA),
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 32),
-
-                            // Login Button
-                            Container(
-                              height: 56,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(16),
-                                color: const Color(0xFF667EEA),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: const Color(0xFF667EEA).withValues(alpha: 0.3),
-                                    blurRadius: 20,
-                                    offset: const Offset(0, 8),
+                                    color: const Color(
+                                      0xFF667EEA,
+                                    ).withValues(alpha: 0.15),
+                                    blurRadius: 30,
+                                    offset: const Offset(0, 15),
                                   ),
                                 ],
                               ),
-                              child: ElevatedButton(
-                                onPressed: _isLoading ? null : _login,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.transparent,
-                                  shadowColor: Colors.transparent,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  // Logo
+                                  Center(
+                                    child: Container(
+                                      width: 90,
+                                      height: 90,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(24),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: const Color(
+                                              0xFF667EEA,
+                                            ).withValues(alpha: 0.15),
+                                            blurRadius: 20,
+                                            offset: const Offset(0, 10),
+                                          ),
+                                        ],
+                                      ),
+                                      padding: const EdgeInsets.all(16),
+                                      child: Image.asset('assets/logo.png'),
+                                    ),
                                   ),
-                                ),
-                                child: _isLoading
-                                    ? const SizedBox(
-                                        height: 24,
-                                        width: 24,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2.5,
-                                          valueColor:
-                                              AlwaysStoppedAnimation<Color>(
-                                                Colors.white,
-                                              ),
-                                        ),
-                                      )
-                                    : const Text(
-                                        'Sign In',
+                                  const SizedBox(height: 32),
+
+                                  // Welcome Text
+                                  const Text(
+                                    'Welcome Back',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 32,
+                                      fontWeight: FontWeight.w900,
+                                      color: Color(0xFF2D3748),
+                                      letterSpacing: -0.5,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Sign in to continue',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 40),
+
+                                  // Fields
+                                  _buildTextField(
+                                    controller: _emailController,
+                                    label: 'Email or Employee ID',
+                                    icon: Icons.email_outlined,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  _buildTextField(
+                                    controller: _passwordController,
+                                    label: 'Password',
+                                    icon: Icons.lock_outline_rounded,
+                                    isPassword: true,
+                                    isVisible: _isPasswordVisible,
+                                    onVisibilityChanged: () {
+                                      setState(() {
+                                        _isPasswordVisible =
+                                            !_isPasswordVisible;
+                                      });
+                                    },
+                                  ),
+                                  const SizedBox(height: 12),
+
+                                  // Forgot Password
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton(
+                                      onPressed: _isLoading
+                                          ? null
+                                          : _forgotPassword,
+                                      style: TextButton.styleFrom(
+                                        padding: EdgeInsets.zero,
+                                        minimumSize: Size.zero,
+                                        tapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                      child: const Text(
+                                        'Forgot Password?',
                                         style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                          letterSpacing: 0.5,
+                                          color: Color(0xFF667EEA),
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 13,
                                         ),
                                       ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 32),
+
+                                  // Login Button
+                                  Container(
+                                    height: 56,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(16),
+                                      color: const Color(0xFF667EEA),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: const Color(
+                                            0xFF667EEA,
+                                          ).withValues(alpha: 0.3),
+                                          blurRadius: 20,
+                                          offset: const Offset(0, 8),
+                                        ),
+                                      ],
+                                    ),
+                                    child: ElevatedButton(
+                                      onPressed: _isLoading ? null : _login,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.transparent,
+                                        shadowColor: Colors.transparent,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                        ),
+                                      ),
+                                      child: _isLoading
+                                          ? const SizedBox(
+                                              height: 24,
+                                              width: 24,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2.5,
+                                                valueColor:
+                                                    AlwaysStoppedAnimation<
+                                                      Color
+                                                    >(Colors.white),
+                                              ),
+                                            )
+                                          : const Text(
+                                              'Sign In',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white,
+                                                letterSpacing: 0.5,
+                                              ),
+                                            ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                          ],
+                          ),
+                        )
+                        .animate()
+                        .fadeIn(duration: 800.ms, curve: Curves.easeOutCubic)
+                        .slideY(
+                          begin: 0.1,
+                          duration: 800.ms,
+                          curve: Curves.easeOutCubic,
+                        )
+                        .scaleXY(
+                          begin: 0.95,
+                          duration: 800.ms,
+                          curve: Curves.easeOutCubic,
                         ),
-                      ),
-                    ),
-                    ).animate()
-                     .fadeIn(duration: 800.ms, curve: Curves.easeOutCubic)
-                     .slideY(begin: 0.1, duration: 800.ms, curve: Curves.easeOutCubic)
-                     .scaleXY(begin: 0.95, duration: 800.ms, curve: Curves.easeOutCubic),
               ),
             ),
           ),
