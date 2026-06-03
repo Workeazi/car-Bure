@@ -69,8 +69,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _initializeSheets() {
+    _availableSheets.clear();
     try {
-      String safePermsJson = widget.permissions
+      String safePermsJson = _currentPermissions
           .replaceAll('“', '"')
           .replaceAll('”', '"');
       if (safePermsJson.trim().startsWith('[')) {
@@ -93,7 +94,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_availableSheets.isEmpty) {
       _selectedSheet = _getSheetToFetchFallback();
     } else {
-      _selectedSheet = _availableSheets.first;
+      if (!_availableSheets.contains(_selectedSheet)) {
+        _selectedSheet = _availableSheets.first;
+      }
     }
   }
 
@@ -122,10 +125,13 @@ class _HomeScreenState extends State<HomeScreen> {
             if (sheetName == currentSheet || sheetName == 'all') {
               final perms =
                   item['Access Permissions'] ??
+                  item['AccessPermissions'] ??
                   item['permissions'] ??
                   item['access permissions'];
               if (perms is List) {
                 _accessPermissions = perms.join(',');
+              } else if (perms is String) {
+                _accessPermissions = perms;
               }
               break;
             }
@@ -149,6 +155,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   item['Permissions'] ?? item['fields'] ?? item['permissions'];
               if (fields is List) {
                 columns = fields.map((e) => e.toString().trim()).toList();
+              } else if (fields is String) {
+                columns = fields.split(',').map((e) => e.trim()).toList();
               }
               break;
             }
@@ -184,48 +192,66 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() => _isLoading = true);
     }
 
-    // Refresh user permissions immediately in the background
-    GoogleSheetsService.fetchSheet2Data()
-        .then((users) async {
-          if (users != null && mounted) {
-            for (final user in users) {
-              final cellEmployeeId =
-                  user['Employee ID'] ?? user['EmployeeID'] ?? '';
-              final cellEmail =
-                  user['Email ID'] ?? user['Email'] ?? user['EmailID'] ?? '';
+    String getValue(Map<String, String> user, List<String> possibleKeys) {
+      for (final key in possibleKeys) {
+        final actualKey = user.keys.firstWhere(
+          (k) =>
+              k.toLowerCase().replaceAll(' ', '').replaceAll('_', '') ==
+              key.toLowerCase().replaceAll(' ', '').replaceAll('_', ''),
+          orElse: () => '',
+        );
+        if (actualKey.isNotEmpty && user[actualKey] != null) {
+          return user[actualKey]!.trim();
+        }
+      }
+      return '';
+    }
 
-              if (cellEmployeeId == widget.loginId ||
-                  cellEmail == widget.loginId) {
-                final newPerms = user['Permissions'] ?? user['fields'] ?? '';
-                final newAccess =
-                    user['Access Permissions'] ??
-                    user['access_permissions'] ??
-                    user['access permissions'] ??
-                    '';
+    // Fetch and apply user permissions synchronously before data load
+    try {
+      final users = await GoogleSheetsService.fetchSheet2Data();
+      if (users != null && mounted) {
+        for (final user in users) {
+          final cellEmployeeId = getValue(user, ['EmployeeID', 'Employee ID']);
+          final cellEmail = getValue(user, ['EmailID', 'Email', 'Email ID']);
 
-                if (newPerms.toString() != _currentPermissions ||
-                    newAccess.toString() != _currentAccessPermissions) {
-                  final prefs = await SharedPreferences.getInstance();
-                  await prefs.setString('permissions', newPerms.toString());
-                  await prefs.setString(
-                    'accessPermissions',
-                    newAccess.toString(),
-                  );
+          final loginIdClean = widget.loginId.trim().toLowerCase();
 
-                  if (mounted) {
-                    setState(() {
-                      _currentPermissions = newPerms.toString();
-                      _currentAccessPermissions = newAccess.toString();
-                      _parsePermissions();
-                    });
-                  }
-                }
-                break;
+          if (cellEmployeeId.toLowerCase() == loginIdClean ||
+              cellEmail.toLowerCase() == loginIdClean) {
+            final newPerms = getValue(user, ['Permissions', 'fields']);
+            final newAccess = getValue(user, [
+              'AccessPermissions',
+              'Access Permissions',
+            ]);
+
+            final newPermsStr = newPerms.toString().trim();
+            final newAccessStr = newAccess.toString().trim();
+            final currentPermsStr = _currentPermissions.trim();
+            final currentAccessStr = _currentAccessPermissions.trim();
+
+            if (newPermsStr != currentPermsStr ||
+                newAccessStr != currentAccessStr) {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setString('permissions', newPermsStr);
+              await prefs.setString('accessPermissions', newAccessStr);
+
+              if (mounted) {
+                // Not calling setState yet to avoid double rebuild
+                // because we'll call setState for _dataList right below
+                _currentPermissions = newPermsStr;
+                _currentAccessPermissions = newAccessStr;
+                _initializeSheets(); // Rebuild sheets list
+                _parsePermissions();
               }
             }
+            break;
           }
-        })
-        .catchError((_) {});
+        }
+      }
+    } catch (_) {
+      // Proceed even if permissions fetch fails
+    }
 
     try {
       final parsedData = await GoogleSheetsService.fetchSheetData(
