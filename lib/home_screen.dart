@@ -282,6 +282,8 @@ class _HomeScreenState extends State<HomeScreen> {
       editColumns.insert(0, 'Date');
     }
 
+    final isOtherMap = <String, bool>{};
+
     final controllers = {
       for (final col in editColumns)
         col: TextEditingController(
@@ -395,79 +397,105 @@ class _HomeScreenState extends State<HomeScreen> {
                         itemBuilder: (context, index) {
                           final col = editColumns[index];
                           final isDate = col.toLowerCase() == 'date';
+                          final isParty = col.toLowerCase() == 'party' && _getSheetToFetch().toLowerCase() == 'carboninput';
+                          
+                          Widget inputField;
+                          if (isParty) {
+                            final predefinedOptions = ['GEE CARBON', 'BAJAJI ENTERPRIES', 'AXIS GLOBAL'];
+                            final options = [...predefinedOptions, 'OTHER'];
+                            
+                            String currentVal = controllers[col]!.text.toUpperCase().trim();
+                            bool showTextField = isOtherMap[col] ?? (currentVal.isNotEmpty && !predefinedOptions.contains(currentVal));
+
+                            String? dropdownValue;
+                            if (showTextField) {
+                              dropdownValue = 'OTHER';
+                            } else {
+                              dropdownValue = currentVal.isEmpty ? null : currentVal;
+                            }
+
+                            inputField = Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                DropdownButtonFormField<String>(
+                                  value: dropdownValue,
+                                  dropdownColor: Colors.white,
+                                  icon: const Icon(Icons.arrow_drop_down_rounded, color: Color(0xFF667EEA)),
+                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF334155)),
+                                  decoration: InputDecoration(
+                                    labelText: col.toUpperCase(),
+                                    labelStyle: const TextStyle(color: Color(0xFF94A3B8), fontWeight: FontWeight.w700, fontSize: 12, letterSpacing: 1.2),
+                                    floatingLabelBehavior: FloatingLabelBehavior.auto,
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF667EEA), width: 2)),
+                                  ),
+                                  items: options.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                                  onChanged: (val) {
+                                    if (val != null) {
+                                      if (val == 'OTHER') {
+                                        isOtherMap[col] = true;
+                                        if (predefinedOptions.contains(controllers[col]!.text.toUpperCase().trim())) {
+                                          controllers[col]!.text = '';
+                                        }
+                                      } else {
+                                        isOtherMap[col] = false;
+                                        controllers[col]!.text = val;
+                                      }
+                                      setSheetState(() {});
+                                    }
+                                  },
+                                ),
+                                if (showTextField) ...[
+                                  const SizedBox(height: 12),
+                                  TextField(
+                                    controller: controllers[col],
+                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF334155)),
+                                    decoration: InputDecoration(
+                                      labelText: 'ENTER OTHER PARTY',
+                                      labelStyle: const TextStyle(color: Color(0xFF94A3B8), fontWeight: FontWeight.w700, fontSize: 12, letterSpacing: 1.2),
+                                      floatingLabelBehavior: FloatingLabelBehavior.auto,
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF667EEA), width: 2)),
+                                    ),
+                                  ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.1, curve: Curves.easeOutQuart),
+                                ]
+                              ],
+                            );
+                          } else {
+                            inputField = TextField(
+                              controller: controllers[col],
+                              readOnly: isDate,
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF334155)),
+                              onTap: isDate ? () => _showDatePicker(context, controllers[col]!) : null,
+                              decoration: InputDecoration(
+                                labelText: col.toUpperCase(),
+                                labelStyle: const TextStyle(color: Color(0xFF94A3B8), fontWeight: FontWeight.w700, fontSize: 12, letterSpacing: 1.2),
+                                suffixIcon: isDate ? Container(margin: const EdgeInsets.all(8), decoration: BoxDecoration(color: const Color(0xFF667EEA).withOpacity(0.1), borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.calendar_month_rounded, color: Color(0xFF667EEA), size: 20)) : null,
+                                floatingLabelBehavior: FloatingLabelBehavior.auto,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF667EEA), width: 2)),
+                              ),
+                            );
+                          }
+
                           return Container(
                                 decoration: BoxDecoration(
                                   color: Colors.white,
                                   borderRadius: BorderRadius.circular(16),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: const Color(
-                                        0xFF667EEA,
-                                      ).withOpacity(0.04),
+                                      color: const Color(0xFF667EEA).withOpacity(0.04),
                                       blurRadius: 15,
                                       spreadRadius: 2,
                                       offset: const Offset(0, 4),
                                     ),
                                   ],
                                 ),
-                                child: TextField(
-                                  controller: controllers[col],
-                                  readOnly: isDate,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF334155),
-                                  ),
-                                  onTap: isDate
-                                      ? () => _showDatePicker(
-                                          context,
-                                          controllers[col]!,
-                                        )
-                                      : null,
-                                  decoration: InputDecoration(
-                                    labelText: col.toUpperCase(),
-                                    labelStyle: const TextStyle(
-                                      color: Color(0xFF94A3B8),
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 12,
-                                      letterSpacing: 1.2,
-                                    ),
-                                    suffixIcon: isDate
-                                        ? Container(
-                                            margin: const EdgeInsets.all(8),
-                                            decoration: BoxDecoration(
-                                              color: const Color(
-                                                0xFF667EEA,
-                                              ).withOpacity(0.1),
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                            ),
-                                            child: const Icon(
-                                              Icons.calendar_month_rounded,
-                                              color: Color(0xFF667EEA),
-                                              size: 20,
-                                            ),
-                                          )
-                                        : null,
-                                    floatingLabelBehavior:
-                                        FloatingLabelBehavior.auto,
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 20,
-                                      vertical: 18,
-                                    ),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                      borderSide: BorderSide.none,
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                      borderSide: const BorderSide(
-                                        color: Color(0xFF667EEA),
-                                        width: 2,
-                                      ),
-                                    ),
-                                  ),
-                                ),
+                                child: inputField,
                               )
                               .animate()
                               .fadeIn(
@@ -826,6 +854,8 @@ class _HomeScreenState extends State<HomeScreen> {
       addColumns.insert(0, 'Date');
     }
 
+    final isOtherMap = <String, bool>{};
+
     final controllers = {
       for (final col in addColumns)
         col: TextEditingController(
@@ -905,42 +935,91 @@ class _HomeScreenState extends State<HomeScreen> {
                         padding: const EdgeInsets.all(16),
                         children: addColumns.map((col) {
                           final isDate = col.toLowerCase() == 'date';
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 16),
-                            child: TextField(
+                          final isParty = col.toLowerCase() == 'party' && _getSheetToFetch().toLowerCase() == 'carboninput';
+                          
+                          Widget inputField;
+                          if (isParty) {
+                            final predefinedOptions = ['GEE CARBON', 'BAJAJI ENTERPRIES', 'AXIS GLOBAL'];
+                            final options = [...predefinedOptions, 'OTHER'];
+                            
+                            String currentVal = controllers[col]!.text.toUpperCase().trim();
+                            bool showTextField = isOtherMap[col] ?? (currentVal.isNotEmpty && !predefinedOptions.contains(currentVal));
+
+                            String? dropdownValue;
+                            if (showTextField) {
+                              dropdownValue = 'OTHER';
+                            } else {
+                              dropdownValue = currentVal.isEmpty ? null : currentVal;
+                            }
+
+                            inputField = Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                DropdownButtonFormField<String>(
+                                  value: dropdownValue,
+                                  dropdownColor: Colors.white,
+                                  icon: const Icon(Icons.arrow_drop_down_rounded, color: Color(0xFF667EEA)),
+                                  decoration: InputDecoration(
+                                    labelText: col,
+                                    labelStyle: const TextStyle(color: Colors.grey),
+                                    filled: true,
+                                    fillColor: Colors.grey.shade50,
+                                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)),
+                                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF667EEA))),
+                                  ),
+                                  items: options.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                                  onChanged: (val) {
+                                    if (val != null) {
+                                      if (val == 'OTHER') {
+                                        isOtherMap[col] = true;
+                                        if (predefinedOptions.contains(controllers[col]!.text.toUpperCase().trim())) {
+                                          controllers[col]!.text = '';
+                                        }
+                                      } else {
+                                        isOtherMap[col] = false;
+                                        controllers[col]!.text = val;
+                                      }
+                                      setSheetState(() {});
+                                    }
+                                  },
+                                ),
+                                if (showTextField) ...[
+                                  const SizedBox(height: 12),
+                                  TextField(
+                                    controller: controllers[col],
+                                    decoration: InputDecoration(
+                                      labelText: 'Enter Other Party',
+                                      labelStyle: const TextStyle(color: Colors.grey),
+                                      filled: true,
+                                      fillColor: Colors.grey.shade50,
+                                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)),
+                                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF667EEA))),
+                                    ),
+                                  ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.1, curve: Curves.easeOutQuart),
+                                ]
+                              ],
+                            );
+                          } else {
+                            inputField = TextField(
                               controller: controllers[col],
                               readOnly: isDate,
-                              onTap: isDate
-                                  ? () => _showDatePicker(
-                                      context,
-                                      controllers[col]!,
-                                    )
-                                  : null,
+                              onTap: isDate ? () => _showDatePicker(context, controllers[col]!) : null,
                               decoration: InputDecoration(
                                 labelText: col,
                                 labelStyle: const TextStyle(color: Colors.grey),
-                                suffixIcon: isDate
-                                    ? const Icon(
-                                        Icons.calendar_today_outlined,
-                                        color: Color(0xFF667EEA),
-                                      )
-                                    : null,
+                                suffixIcon: isDate ? const Icon(Icons.calendar_today_outlined, color: Color(0xFF667EEA)) : null,
                                 filled: true,
                                 fillColor: Colors.grey.shade50,
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(
-                                    color: Colors.grey.shade200,
-                                  ),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(
-                                    color: Color(0xFF667EEA),
-                                  ),
-                                ),
+                                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)),
+                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF667EEA))),
                               ),
-                            ),
+                            );
+                          }
+
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: inputField,
                           );
                         }).toList(),
                       ),
