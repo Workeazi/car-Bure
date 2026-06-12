@@ -12,10 +12,10 @@ void main() {
       for (var item in parsedPerms) {
         if (item is Map) {
            String sheetName = (item['sheet'] ?? '').toString().trim().toLowerCase();
-           print("Found sheet: " + sheetName + ", checking against " + currentSheet);
+           print("Found sheet: $sheetName, checking against $currentSheet");
            if (sheetName == currentSheet || sheetName == 'all') {
               final fields = item['Permissions'] ?? item['fields'] ?? item['permissions'];
-              print("Fields: " + fields.toString());
+              print("Fields: $fields");
               if (fields is List) {
                 columns = fields.map((e) => e.toString().trim()).toList();
               }
@@ -27,9 +27,9 @@ void main() {
       columns = widgetPermissions.split(',').map((e) => e.trim()).toList();
     }
   } catch (e) {
-    print("Perms JSON Parse Error: " + e.toString());
+    print("Perms JSON Parse Error: $e");
     columns = widgetPermissions.split(',').map((e) => e.trim()).toList();
   }
 
-  print("Columns: " + columns.toString());
+  print("Columns: $columns");
 }

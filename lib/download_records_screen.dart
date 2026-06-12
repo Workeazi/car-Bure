@@ -197,7 +197,7 @@ class _DownloadRecordsScreenState extends State<DownloadRecordsScreen> {
       final generatedOn =
           'Generated on: ${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}, ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
 
-      String _getFormattedDate(Map<String, String> record) {
+      String getFormattedDate(Map<String, String> record) {
         String dateKey = record.keys.firstWhere(
           (k) => k.trim().toLowerCase() == 'date',
           orElse: () => '',
@@ -282,7 +282,7 @@ class _DownloadRecordsScreenState extends State<DownloadRecordsScreen> {
                     data: chunk.map((record) {
                       return pdfHeaders.map((col) {
                         if (col.toLowerCase() == 'date') {
-                          return _getFormattedDate(record);
+                          return getFormattedDate(record);
                         }
                         final actualKey = record.keys.firstWhere(
                           (k) =>

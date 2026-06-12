@@ -45,7 +45,7 @@ class _HomeScreenState extends State<HomeScreen> {
   late String _currentPermissions;
   late String _currentAccessPermissions;
 
-  List<String> _availableSheets = [];
+  final List<String> _availableSheets = [];
   String _selectedSheet = '';
 
   final TextEditingController _searchController = TextEditingController();
@@ -397,21 +397,38 @@ class _HomeScreenState extends State<HomeScreen> {
                         itemBuilder: (context, index) {
                           final col = editColumns[index];
                           final isDate = col.toLowerCase() == 'date';
-                          final isParty = col.toLowerCase() == 'party' && _getSheetToFetch().toLowerCase() == 'carboninput';
-                          
+                          final isBagWt = col.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '') == 'bagwt';
+                          final isKilnSheet = _getSheetToFetch().toLowerCase().contains('kiln') || widget.role.toLowerCase() == 'kiln';
+                          final isInputFeed = isKilnSheet && col.toLowerCase().replaceAll(' ', '') == 'inputfeedgrade';
+                          final isOutputGrade = isKilnSheet && col.toLowerCase().replaceAll(' ', '') == 'outputgrade';
+                          final isParty =
+                              col.toLowerCase() == 'party' &&
+                              _getSheetToFetch().toLowerCase() == 'carboninput';
+
                           Widget inputField;
                           if (isParty) {
-                            final predefinedOptions = ['GEE CARBON', 'BAJAJI ENTERPRIES', 'AXIS GLOBAL'];
+                            final predefinedOptions = [
+                              'GEE CARBON',
+                              'BAJAJI ENTERPRIES',
+                              'AXIS GLOBAL',
+                            ];
                             final options = [...predefinedOptions, 'OTHER'];
-                            
-                            String currentVal = controllers[col]!.text.toUpperCase().trim();
-                            bool showTextField = isOtherMap[col] ?? (currentVal.isNotEmpty && !predefinedOptions.contains(currentVal));
+
+                            String currentVal = controllers[col]!.text
+                                .toUpperCase()
+                                .trim();
+                            bool showTextField =
+                                isOtherMap[col] ??
+                                (currentVal.isNotEmpty &&
+                                    !predefinedOptions.contains(currentVal));
 
                             String? dropdownValue;
                             if (showTextField) {
                               dropdownValue = 'OTHER';
                             } else {
-                              dropdownValue = currentVal.isEmpty ? null : currentVal;
+                              dropdownValue = currentVal.isEmpty
+                                  ? null
+                                  : currentVal;
                             }
 
                             inputField = Column(
@@ -419,24 +436,60 @@ class _HomeScreenState extends State<HomeScreen> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 DropdownButtonFormField<String>(
-                                  value: dropdownValue,
+                                  initialValue: dropdownValue,
                                   dropdownColor: Colors.white,
-                                  icon: const Icon(Icons.arrow_drop_down_rounded, color: Color(0xFF667EEA)),
-                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF334155)),
+                                  icon: const Icon(
+                                    Icons.arrow_drop_down_rounded,
+                                    color: Color(0xFF667EEA),
+                                  ),
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF334155),
+                                  ),
                                   decoration: InputDecoration(
                                     labelText: col.toUpperCase(),
-                                    labelStyle: const TextStyle(color: Color(0xFF94A3B8), fontWeight: FontWeight.w700, fontSize: 12, letterSpacing: 1.2),
-                                    floatingLabelBehavior: FloatingLabelBehavior.auto,
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF667EEA), width: 2)),
+                                    labelStyle: const TextStyle(
+                                      color: Color(0xFF94A3B8),
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12,
+                                      letterSpacing: 1.2,
+                                    ),
+                                    floatingLabelBehavior:
+                                        FloatingLabelBehavior.auto,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 20,
+                                      vertical: 18,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      borderSide: BorderSide.none,
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      borderSide: const BorderSide(
+                                        color: Color(0xFF667EEA),
+                                        width: 2,
+                                      ),
+                                    ),
                                   ),
-                                  items: options.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                                  items: options
+                                      .map(
+                                        (e) => DropdownMenuItem(
+                                          value: e,
+                                          child: Text(e),
+                                        ),
+                                      )
+                                      .toList(),
                                   onChanged: (val) {
                                     if (val != null) {
                                       if (val == 'OTHER') {
                                         isOtherMap[col] = true;
-                                        if (predefinedOptions.contains(controllers[col]!.text.toUpperCase().trim())) {
+                                        if (predefinedOptions.contains(
+                                          controllers[col]!.text
+                                              .toUpperCase()
+                                              .trim(),
+                                        )) {
                                           controllers[col]!.text = '';
                                         }
                                       } else {
@@ -450,34 +503,125 @@ class _HomeScreenState extends State<HomeScreen> {
                                 if (showTextField) ...[
                                   const SizedBox(height: 12),
                                   TextField(
-                                    controller: controllers[col],
-                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF334155)),
-                                    decoration: InputDecoration(
-                                      labelText: 'ENTER OTHER PARTY',
-                                      labelStyle: const TextStyle(color: Color(0xFF94A3B8), fontWeight: FontWeight.w700, fontSize: 12, letterSpacing: 1.2),
-                                      floatingLabelBehavior: FloatingLabelBehavior.auto,
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF667EEA), width: 2)),
-                                    ),
-                                  ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.1, curve: Curves.easeOutQuart),
-                                ]
+                                        controller: controllers[col],
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF334155),
+                                        ),
+                                        decoration: InputDecoration(
+                                          labelText: 'ENTER OTHER PARTY',
+                                          labelStyle: const TextStyle(
+                                            color: Color(0xFF94A3B8),
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 12,
+                                            letterSpacing: 1.2,
+                                          ),
+                                          floatingLabelBehavior:
+                                              FloatingLabelBehavior.auto,
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                horizontal: 20,
+                                                vertical: 18,
+                                              ),
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
+                                            borderSide: BorderSide.none,
+                                          ),
+                                          focusedBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
+                                            borderSide: const BorderSide(
+                                              color: Color(0xFF667EEA),
+                                              width: 2,
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                      .animate()
+                                      .fadeIn(duration: 300.ms)
+                                      .slideY(
+                                        begin: -0.1,
+                                        curve: Curves.easeOutQuart,
+                                      ),
+                                ],
                               ],
                             );
                           } else {
                             inputField = TextField(
                               controller: controllers[col],
-                              readOnly: isDate,
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF334155)),
-                              onTap: isDate ? () => _showDatePicker(context, controllers[col]!) : null,
+                              readOnly: isDate || isBagWt || isInputFeed || isOutputGrade,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF334155),
+                              ),
+                              onTap: () {
+                                if (isBagWt || isInputFeed || isOutputGrade) {
+                                  final msg = isBagWt ? 'Bag Wt.' : col;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'You do not have permission to edit $msg.',
+                                      ),
+                                      backgroundColor:
+                                          Colors.redAccent.shade200,
+                                      behavior: SnackBarBehavior.floating,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                  );
+                                } else if (isDate) {
+                                  _showDatePicker(context, controllers[col]!);
+                                }
+                              },
                               decoration: InputDecoration(
                                 labelText: col.toUpperCase(),
-                                labelStyle: const TextStyle(color: Color(0xFF94A3B8), fontWeight: FontWeight.w700, fontSize: 12, letterSpacing: 1.2),
-                                suffixIcon: isDate ? Container(margin: const EdgeInsets.all(8), decoration: BoxDecoration(color: const Color(0xFF667EEA).withOpacity(0.1), borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.calendar_month_rounded, color: Color(0xFF667EEA), size: 20)) : null,
-                                floatingLabelBehavior: FloatingLabelBehavior.auto,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF667EEA), width: 2)),
+                                labelStyle: const TextStyle(
+                                  color: Color(0xFF94A3B8),
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
+                                  letterSpacing: 1.2,
+                                ),
+                                suffixIcon: isDate
+                                    ? Container(
+                                        margin: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: const Color(
+                                            0xFF667EEA,
+                                          ).withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.calendar_month_rounded,
+                                          color: Color(0xFF667EEA),
+                                          size: 20,
+                                        ),
+                                      )
+                                    : null,
+                                floatingLabelBehavior:
+                                    FloatingLabelBehavior.auto,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 18,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: BorderSide.none,
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: const BorderSide(
+                                    color: Color(0xFF667EEA),
+                                    width: 2,
+                                  ),
+                                ),
                               ),
                             );
                           }
@@ -488,7 +632,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                   borderRadius: BorderRadius.circular(16),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: const Color(0xFF667EEA).withOpacity(0.04),
+                                      color: const Color(
+                                        0xFF667EEA,
+                                      ).withOpacity(0.04),
                                       blurRadius: 15,
                                       spreadRadius: 2,
                                       offset: const Offset(0, 4),
@@ -578,27 +724,84 @@ class _HomeScreenState extends State<HomeScreen> {
   ) async {
     final originalList = List<Map<String, String>>.from(_dataList);
 
-    // Identify row key identifier (try IV NO first, then Date, then fallback to first column)
-    String identifierKey = originalItem.keys.firstWhere(
-      (k) => k.toLowerCase().trim() == 'iv no',
-      orElse: () => '',
-    );
+    // Identify row key identifier by finding the first preferred column that has a non-empty value
+    // Identify row key identifier by finding a column with a unique value
+    String identifierKey = '';
+    String targetIvValue = '';
 
-    if (identifierKey.isEmpty && originalItem.keys.isNotEmpty) {
-      identifierKey = originalItem.keys.firstWhere(
-        (k) => k.toLowerCase().trim() == 'date',
-        orElse: () => originalItem.keys.first,
+    final preferredKeys = ['ivno', 'chno', 'challanno', 'date'];
+
+    // 1. Try to find a unique identifier from preferred keys
+    for (String pk in preferredKeys) {
+      final matchedKey = originalItem.keys.firstWhere(
+        (k) => k.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '') == pk,
+        orElse: () => '',
       );
+      if (matchedKey.isNotEmpty &&
+          (originalItem[matchedKey]?.trim() ?? '').isNotEmpty) {
+        final val = originalItem[matchedKey]!;
+        final count = _dataList.where((row) => row[matchedKey] == val).length;
+        if (count == 1) {
+          identifierKey = matchedKey;
+          targetIvValue = val;
+          break;
+        }
+      }
+    }
+
+    // 2. If no preferred key is unique, search all columns for a unique value
+    if (identifierKey.isEmpty) {
+      for (var key in originalItem.keys) {
+        final val = originalItem[key];
+        if (val != null && val.trim().isNotEmpty) {
+          final count = _dataList.where((row) => row[key] == val).length;
+          if (count == 1) {
+            identifierKey = key;
+            targetIvValue = val;
+            break;
+          }
+        }
+      }
+    }
+
+    // 3. Fallback to first non-empty preferred key (even if not unique)
+    if (identifierKey.isEmpty) {
+      for (String pk in preferredKeys) {
+        final matchedKey = originalItem.keys.firstWhere(
+          (k) => k.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '') == pk,
+          orElse: () => '',
+        );
+        if (matchedKey.isNotEmpty &&
+            (originalItem[matchedKey]?.trim() ?? '').isNotEmpty) {
+          identifierKey = matchedKey;
+          targetIvValue = originalItem[matchedKey]!;
+          break;
+        }
+      }
+    }
+
+    // 4. Absolute fallback to any non-empty key
+    if (identifierKey.isEmpty && originalItem.keys.isNotEmpty) {
+      for (var key in originalItem.keys) {
+        if ((originalItem[key]?.trim() ?? '').isNotEmpty) {
+          identifierKey = key;
+          targetIvValue = originalItem[key]!;
+          break;
+        }
+      }
+
+      if (identifierKey.isEmpty) {
+        identifierKey = originalItem.keys.first;
+        targetIvValue = originalItem[identifierKey] ?? '';
+      }
     }
 
     if (identifierKey.isEmpty) {
       _showErrorDialog(
-        'Missing Key: Could not locate a valid column identifier (e.g. IV NO or Date).',
+        'Missing Key: Could not locate a valid column identifier.',
       );
       return;
     }
-
-    final targetIvValue = originalItem[identifierKey] ?? '';
 
     // Align all fields perfectly
     final alignedRecord = <String, String>{};
@@ -610,7 +813,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
     updatedData.forEach((key, val) {
       final actualKey = alignedRecord.keys.firstWhere(
-        (k) => k.toLowerCase().trim() == key.toLowerCase().trim(),
+        (k) =>
+            k.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '') ==
+            key.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), ''),
         orElse: () => key,
       );
       if (alignedRecord[actualKey] != val) {
@@ -855,13 +1060,18 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     final isOtherMap = <String, bool>{};
+    final isKiln = _getSheetToFetch().toLowerCase().contains('kiln') || widget.role.toLowerCase() == 'kiln';
 
     final controllers = {
       for (final col in addColumns)
         col: TextEditingController(
           text: col.toLowerCase() == 'date'
               ? _formatDateToString(DateTime.now())
-              : '',
+              : (isKiln && col.toLowerCase().replaceAll(' ', '') == 'inputfeedgrade'
+                  ? '2X10 GC'
+                  : (isKiln && col.toLowerCase().replaceAll(' ', '') == 'outputgrade'
+                      ? '3X30'
+                      : '')),
         ),
     };
 
@@ -913,6 +1123,17 @@ class _HomeScreenState extends State<HomeScreen> {
                               controllers.forEach((key, controller) {
                                 newRecord[key] = controller.text.trim();
                               });
+                              
+                              if (isKiln) {
+                                // Add default values regardless of user permissions
+                                if (!newRecord.keys.any((k) => k.toLowerCase().replaceAll(' ', '') == 'inputfeedgrade')) {
+                                  newRecord['INPUT Feed Grade'] = '2X10 GC';
+                                }
+                                if (!newRecord.keys.any((k) => k.toLowerCase().replaceAll(' ', '') == 'outputgrade')) {
+                                  newRecord['OUTPUT Grade'] = '3X30';
+                                }
+                              }
+
                               Navigator.pop(context);
                               await _saveAddAndRefresh(newRecord);
                             },
@@ -935,21 +1156,37 @@ class _HomeScreenState extends State<HomeScreen> {
                         padding: const EdgeInsets.all(16),
                         children: addColumns.map((col) {
                           final isDate = col.toLowerCase() == 'date';
-                          final isParty = col.toLowerCase() == 'party' && _getSheetToFetch().toLowerCase() == 'carboninput';
-                          
+                          final isKilnSheet = _getSheetToFetch().toLowerCase().contains('kiln') || widget.role.toLowerCase() == 'kiln';
+                          final isInputFeed = isKilnSheet && col.toLowerCase().replaceAll(' ', '') == 'inputfeedgrade';
+                          final isOutputGrade = isKilnSheet && col.toLowerCase().replaceAll(' ', '') == 'outputgrade';
+                          final isParty =
+                              col.toLowerCase() == 'party' &&
+                              _getSheetToFetch().toLowerCase() == 'carboninput';
+
                           Widget inputField;
                           if (isParty) {
-                            final predefinedOptions = ['GEE CARBON', 'BAJAJI ENTERPRIES', 'AXIS GLOBAL'];
+                            final predefinedOptions = [
+                              'GEE CARBON',
+                              'BAJAJI ENTERPRIES',
+                              'AXIS GLOBAL',
+                            ];
                             final options = [...predefinedOptions, 'OTHER'];
-                            
-                            String currentVal = controllers[col]!.text.toUpperCase().trim();
-                            bool showTextField = isOtherMap[col] ?? (currentVal.isNotEmpty && !predefinedOptions.contains(currentVal));
+
+                            String currentVal = controllers[col]!.text
+                                .toUpperCase()
+                                .trim();
+                            bool showTextField =
+                                isOtherMap[col] ??
+                                (currentVal.isNotEmpty &&
+                                    !predefinedOptions.contains(currentVal));
 
                             String? dropdownValue;
                             if (showTextField) {
                               dropdownValue = 'OTHER';
                             } else {
-                              dropdownValue = currentVal.isEmpty ? null : currentVal;
+                              dropdownValue = currentVal.isEmpty
+                                  ? null
+                                  : currentVal;
                             }
 
                             inputField = Column(
@@ -957,23 +1194,49 @@ class _HomeScreenState extends State<HomeScreen> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 DropdownButtonFormField<String>(
-                                  value: dropdownValue,
+                                  initialValue: dropdownValue,
                                   dropdownColor: Colors.white,
-                                  icon: const Icon(Icons.arrow_drop_down_rounded, color: Color(0xFF667EEA)),
+                                  icon: const Icon(
+                                    Icons.arrow_drop_down_rounded,
+                                    color: Color(0xFF667EEA),
+                                  ),
                                   decoration: InputDecoration(
                                     labelText: col,
-                                    labelStyle: const TextStyle(color: Colors.grey),
+                                    labelStyle: const TextStyle(
+                                      color: Colors.grey,
+                                    ),
                                     filled: true,
                                     fillColor: Colors.grey.shade50,
-                                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)),
-                                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF667EEA))),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(
+                                        color: Colors.grey.shade200,
+                                      ),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: const BorderSide(
+                                        color: Color(0xFF667EEA),
+                                      ),
+                                    ),
                                   ),
-                                  items: options.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                                  items: options
+                                      .map(
+                                        (e) => DropdownMenuItem(
+                                          value: e,
+                                          child: Text(e),
+                                        ),
+                                      )
+                                      .toList(),
                                   onChanged: (val) {
                                     if (val != null) {
                                       if (val == 'OTHER') {
                                         isOtherMap[col] = true;
-                                        if (predefinedOptions.contains(controllers[col]!.text.toUpperCase().trim())) {
+                                        if (predefinedOptions.contains(
+                                          controllers[col]!.text
+                                              .toUpperCase()
+                                              .trim(),
+                                        )) {
                                           controllers[col]!.text = '';
                                         }
                                       } else {
@@ -987,32 +1250,87 @@ class _HomeScreenState extends State<HomeScreen> {
                                 if (showTextField) ...[
                                   const SizedBox(height: 12),
                                   TextField(
-                                    controller: controllers[col],
-                                    decoration: InputDecoration(
-                                      labelText: 'Enter Other Party',
-                                      labelStyle: const TextStyle(color: Colors.grey),
-                                      filled: true,
-                                      fillColor: Colors.grey.shade50,
-                                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)),
-                                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF667EEA))),
-                                    ),
-                                  ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.1, curve: Curves.easeOutQuart),
-                                ]
+                                        controller: controllers[col],
+                                        decoration: InputDecoration(
+                                          labelText: 'Enter Other Party',
+                                          labelStyle: const TextStyle(
+                                            color: Colors.grey,
+                                          ),
+                                          filled: true,
+                                          fillColor: Colors.grey.shade50,
+                                          enabledBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            borderSide: BorderSide(
+                                              color: Colors.grey.shade200,
+                                            ),
+                                          ),
+                                          focusedBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            borderSide: const BorderSide(
+                                              color: Color(0xFF667EEA),
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                      .animate()
+                                      .fadeIn(duration: 300.ms)
+                                      .slideY(
+                                        begin: -0.1,
+                                        curve: Curves.easeOutQuart,
+                                      ),
+                                ],
                               ],
                             );
                           } else {
                             inputField = TextField(
                               controller: controllers[col],
-                              readOnly: isDate,
-                              onTap: isDate ? () => _showDatePicker(context, controllers[col]!) : null,
+                              readOnly: isDate || isInputFeed || isOutputGrade,
+                              onTap: () {
+                                if (isInputFeed || isOutputGrade) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('You cannot edit ${col} in Kiln data.'),
+                                      backgroundColor: Colors.redAccent.shade200,
+                                      behavior: SnackBarBehavior.floating,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                  );
+                                } else if (isDate) {
+                                  _showDatePicker(
+                                    context,
+                                    controllers[col]!,
+                                  );
+                                }
+                              },
                               decoration: InputDecoration(
                                 labelText: col,
                                 labelStyle: const TextStyle(color: Colors.grey),
-                                suffixIcon: isDate ? const Icon(Icons.calendar_today_outlined, color: Color(0xFF667EEA)) : null,
+                                suffixIcon: isDate
+                                    ? const Icon(
+                                        Icons.calendar_today_outlined,
+                                        color: Color(0xFF667EEA),
+                                      )
+                                    : null,
                                 filled: true,
                                 fillColor: Colors.grey.shade50,
-                                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)),
-                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF667EEA))),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: Colors.grey.shade200,
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(
+                                    color: Color(0xFF667EEA),
+                                  ),
+                                ),
                               ),
                             );
                           }
@@ -1706,8 +2024,9 @@ class _HomeScreenState extends State<HomeScreen> {
       if (dateKey.isNotEmpty) {
         final dv = (item[dateKey] ?? '').toLowerCase();
         final nq = q.replaceAll('/', '-').replaceAll('.', '-');
-        if (dv.replaceAll('/', '-').replaceAll('.', '-').contains(nq))
+        if (dv.replaceAll('/', '-').replaceAll('.', '-').contains(nq)) {
           return true;
+        }
       }
       return false;
     }).toList();

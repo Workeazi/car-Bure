@@ -258,8 +258,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         // Only allow dynamically plotting columns that the user is permitted to see
         if (widget.permittedColumns.isNotEmpty &&
-            !permittedLower.contains(lowerKey))
+            !permittedLower.contains(lowerKey)) {
           continue;
+        }
 
         final val = _parseDouble(entry.value);
         if (val > 0) {

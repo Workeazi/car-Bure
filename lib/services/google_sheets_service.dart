@@ -27,8 +27,8 @@ class GoogleSheetsService {
         body: jsonEncode({
           'ivNo': ivNo,
           'updates': updates,
-          if (identifierKey != null) 'identifierKey': identifierKey,
-          if (identifierValue != null) 'identifierValue': identifierValue,
+          'identifierKey': ?identifierKey,
+          'identifierValue': ?identifierValue,
         }),
       );
 
@@ -63,8 +63,8 @@ class GoogleSheetsService {
         body: jsonEncode({
           'ivNo': ivNo,
           'permittedColumns': permittedColumns,
-          if (identifierKey != null) 'identifierKey': identifierKey,
-          if (identifierValue != null) 'identifierValue': identifierValue,
+          'identifierKey': ?identifierKey,
+          'identifierValue': ?identifierValue,
         }),
       );
 
