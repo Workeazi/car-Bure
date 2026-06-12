@@ -12,6 +12,7 @@
         "flutter",
         "flutter_animate",
         "flutter_staggered_grid_view",
+        "google_generative_ai",
         "http",
         "intl",
         "path_provider",
@@ -62,6 +63,13 @@
         "stream_channel",
         "test_api",
         "vector_math"
+      ]
+    },
+    {
+      "name": "google_generative_ai",
+      "version": "0.4.7",
+      "dependencies": [
+        "http"
       ]
     },
     {

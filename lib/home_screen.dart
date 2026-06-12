@@ -12,6 +12,7 @@ import 'record_details_screen.dart';
 import 'dashboard_screen.dart';
 import 'download_records_screen.dart';
 import 'profile_screen.dart';
+import 'ai_assistant_screen.dart';
 import 'widgets/aesthetic_loader.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -2111,6 +2112,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       permittedColumns: _permittedColumns,
                       role: _role,
                     )
+                  : _currentIndex == 4
+                  ? AiAssistantScreen(
+                      key: const ValueKey('ai'),
+                      dataList: _dataList,
+                      permittedColumns: _permittedColumns,
+                      accessPermissions: _accessPermissions,
+                      sheetName: _selectedSheet,
+                    )
                   // ── RECORDS TAB (index 0) ──
                   : RefreshIndicator(
                       key: const ValueKey('records'),
@@ -2660,8 +2669,8 @@ class _HomeScreenState extends State<HomeScreen> {
               final width = MediaQuery.of(context).size.width;
               final totalUsable =
                   width - 40 - 20; // 40 for outer padding, 20 for inner padding
-              final activeWidth = totalUsable * 0.45;
-              final inactiveWidth = totalUsable * 0.17; // 45 + 17*3 = 96%
+              final activeWidth = totalUsable * 0.38;
+              final inactiveWidth = totalUsable * 0.15; // 38 + 15*4 = 98%
 
               return Container(
                     decoration: BoxDecoration(
@@ -2723,6 +2732,13 @@ class _HomeScreenState extends State<HomeScreen> {
                                 3,
                                 Icons.person_rounded,
                                 'Profile',
+                                activeWidth,
+                                inactiveWidth,
+                              ),
+                              _buildDynamicPill(
+                                4,
+                                Icons.auto_awesome_rounded,
+                                'AI',
                                 activeWidth,
                                 inactiveWidth,
                               ),

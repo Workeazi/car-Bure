@@ -176,6 +176,12 @@
       "languageVersion": "3.9"
     },
     {
+      "name": "google_generative_ai",
+      "rootUri": "file:///C:/Users/MUFEETHLAFIRKRTC2021/AppData/Local/Pub/Cache/hosted/pub.dev/google_generative_ai-0.4.7",
+      "packageUri": "lib/",
+      "languageVersion": "3.1"
+    },
+    {
       "name": "graphs",
       "rootUri": "file:///C:/Users/MUFEETHLAFIRKRTC2021/AppData/Local/Pub/Cache/hosted/pub.dev/graphs-2.3.2",
       "packageUri": "lib/",
