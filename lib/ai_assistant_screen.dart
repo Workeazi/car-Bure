@@ -88,11 +88,11 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
       }
 
       // 2. CONNECT TO GEMINI
-      const apiKey = 'YOUR_API_KEY_HERE';
+      const apiKey = String.fromEnvironment('GEMINI_API_KEY', defaultValue: 'YOUR_API_KEY_HERE');
 
       if (apiKey == 'YOUR_API_KEY_HERE') {
         aiResponse =
-            "⚠️ Developer Setup Required:\n\nPlease insert your Gemini API Key in `ai_assistant_screen.dart` (line 69) to activate real AI responses.\n\nFor now, your filtered data contains ${secureDataList.length} secure rows with columns: ${widget.permittedColumns.join(', ')}.";
+            "⚠️ Developer Setup Required:\n\nPlease run the app with --dart-define=GEMINI_API_KEY=your_api_key to activate real AI responses.\n\nFor now, your filtered data contains ${secureDataList.length} secure rows with columns: ${widget.permittedColumns.join(', ')}.";
         _completeMessage(aiResponse);
         return;
       }
