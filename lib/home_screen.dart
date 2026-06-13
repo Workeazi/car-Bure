@@ -275,7 +275,145 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ─── EDIT ACTION ────────────────────────────────────────────────────────────
 
-  void _showEditSheet(Map<String, String> item) {
+  String _getEditIdentifier(Map<String, String> item) {
+    String identifierKey = '';
+    String targetIvValue = '';
+    final preferredKeys = ['ivno', 'chno', 'challanno', 'date'];
+    for (String pk in preferredKeys) {
+      final matchedKey = item.keys.firstWhere((k) => k.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '') == pk, orElse: () => '');
+      if (matchedKey.isNotEmpty && (item[matchedKey]?.trim() ?? '').isNotEmpty) {
+        final val = item[matchedKey]!;
+        final count = _dataList.where((row) => row[matchedKey] == val).length;
+        if (count == 1) {
+          identifierKey = matchedKey;
+          targetIvValue = val;
+          break;
+        }
+      }
+    }
+    if (identifierKey.isEmpty) {
+      for (var key in item.keys) {
+        final val = item[key];
+        if (val != null && val.trim().isNotEmpty) {
+          final count = _dataList.where((row) => row[key] == val).length;
+          if (count == 1) {
+            identifierKey = key;
+            targetIvValue = val;
+            break;
+          }
+        }
+      }
+    }
+    if (identifierKey.isEmpty) {
+      for (String pk in preferredKeys) {
+        final matchedKey = item.keys.firstWhere((k) => k.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '') == pk, orElse: () => '');
+        if (matchedKey.isNotEmpty && (item[matchedKey]?.trim() ?? '').isNotEmpty) {
+          identifierKey = matchedKey;
+          targetIvValue = item[matchedKey]!;
+          break;
+        }
+      }
+    }
+    if (identifierKey.isEmpty && item.keys.isNotEmpty) {
+      for (var key in item.keys) {
+        if ((item[key]?.trim() ?? '').isNotEmpty) {
+          identifierKey = key;
+          targetIvValue = item[key]!;
+          break;
+        }
+      }
+      if (identifierKey.isEmpty) {
+        identifierKey = item.keys.first;
+        targetIvValue = item[identifierKey] ?? '';
+      }
+    }
+    return targetIvValue;
+  }
+
+  Future<void> _showEditSheet(Map<String, String> item) async {
+    String targetIvValue = _getEditIdentifier(item);
+
+    final prefs = await SharedPreferences.getInstance();
+    final sheetName = _getSheetToFetch();
+    final editKey = 'edited_${sheetName}_$targetIvValue';
+    
+    if (prefs.getBool(editKey) == true) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            elevation: 0,
+            backgroundColor: Colors.transparent,
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.only(bottom: 24, left: 16, right: 16),
+            content: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.redAccent.withValues(alpha: 0.15),
+                    blurRadius: 20,
+                    spreadRadius: 5,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+                border: Border.all(
+                  color: Colors.redAccent.withValues(alpha: 0.3),
+                  width: 1.5,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.redAccent.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.lock_outline_rounded,
+                      color: Colors.redAccent,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  const Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Edit Locked',
+                          style: TextStyle(
+                            color: Color(0xFF1E293B),
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'If you want to edit, please contact admin.',
+                          style: TextStyle(
+                            color: Color(0xFF64748B),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+      return;
+    }
+
     final editColumns = List<String>.from(_permittedColumns);
     final hasDate = editColumns.any((c) => c.toLowerCase() == 'date');
     if (!hasDate) {
@@ -824,7 +962,11 @@ class _HomeScreenState extends State<HomeScreen> {
       alignedRecord[actualKey] = val;
     });
 
-    if (actualUpdates.isEmpty) return;
+    if (actualUpdates.isEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('edited_${_getSheetToFetch()}_$targetIvValue', true);
+      return;
+    }
 
     final targetIndex = _dataList.indexOf(originalItem);
 
@@ -849,6 +991,13 @@ class _HomeScreenState extends State<HomeScreen> {
         });
         _showErrorDialog(error);
         return;
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('edited_${_getSheetToFetch()}_$targetIvValue', true);
+      final nextIdentifierValue = _getEditIdentifier(alignedRecord);
+      if (nextIdentifierValue.isNotEmpty && nextIdentifierValue != targetIvValue) {
+        await prefs.setBool('edited_${_getSheetToFetch()}_$nextIdentifierValue', true);
       }
 
       // Optimistic update is already applied in state.
