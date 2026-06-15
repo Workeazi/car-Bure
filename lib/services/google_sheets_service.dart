@@ -14,6 +14,7 @@ class GoogleSheetsService {
     String? sheetName,
     String? identifierKey,
     String? identifierValue,
+    Map<String, String>? originalData,
   }) async {
     try {
       String url = '$baseUrl/editRow';
@@ -27,8 +28,9 @@ class GoogleSheetsService {
         body: jsonEncode({
           'ivNo': ivNo,
           'updates': updates,
-          'identifierKey': ?identifierKey,
-          'identifierValue': ?identifierValue,
+          'identifierKey': identifierKey,
+          'identifierValue': identifierValue,
+          'originalData': originalData,
         }),
       );
 
@@ -63,8 +65,8 @@ class GoogleSheetsService {
         body: jsonEncode({
           'ivNo': ivNo,
           'permittedColumns': permittedColumns,
-          'identifierKey': ?identifierKey,
-          'identifierValue': ?identifierValue,
+          'identifierKey': identifierKey,
+          'identifierValue': identifierValue,
         }),
       );
 

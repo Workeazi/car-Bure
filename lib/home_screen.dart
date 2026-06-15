@@ -12,7 +12,7 @@ import 'record_details_screen.dart';
 import 'dashboard_screen.dart';
 import 'download_records_screen.dart';
 import 'profile_screen.dart';
-import 'ai_assistant_screen.dart';
+import 'issue_raising_screen.dart';
 import 'widgets/aesthetic_loader.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -53,6 +53,67 @@ class _HomeScreenState extends State<HomeScreen> {
   String _searchQuery = '';
   bool _isSortDescending = true;
   bool _isSortByDate = false;
+
+  OverlayEntry? _currentToast;
+
+  void _showOverlayToast(BuildContext context, String message) {
+    if (_currentToast != null) {
+      _currentToast!.remove();
+      _currentToast = null;
+    }
+
+    final overlay = Overlay.of(context);
+    _currentToast = OverlayEntry(
+      builder: (context) => Positioned(
+        top: MediaQuery.of(context).size.height * 0.1,
+        left: 20,
+        right: 20,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.redAccent.shade200,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black26,
+                  blurRadius: 10,
+                  offset: Offset(0, 5),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.lock_outline, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    message,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    overlay.insert(_currentToast!);
+    Future.delayed(const Duration(seconds: 3), () {
+      if (_currentToast != null && _currentToast!.mounted) {
+        _currentToast!.remove();
+        _currentToast = null;
+      }
+    });
+  }
 
   bool get _canRead => _accessPermissions.toLowerCase().contains('read');
   bool get _canWrite => _accessPermissions.toLowerCase().contains('write');
@@ -262,7 +323,27 @@ class _HomeScreenState extends State<HomeScreen> {
       if (parsedData != null) {
         if (mounted) {
           setState(() {
-            _dataList = parsedData;
+            _dataList = parsedData.where((item) {
+              // Ignore rows that are just repeated headers or empty title rows
+              final dateVal =
+                  item['Date']?.toString().toLowerCase().trim() ?? '';
+              if (dateVal == 'date' || dateVal == 'iv no' || dateVal.isEmpty)
+                return false;
+
+              bool isDataRow = false;
+              for (var entry in item.entries) {
+                if (entry.key.toLowerCase() != 'date') {
+                  final val = entry.value.toString().trim();
+                  // It's a real data row if any non-date field has a value that isn't just its own column name
+                  if (val.isNotEmpty &&
+                      val.toLowerCase() != entry.key.toLowerCase()) {
+                    isDataRow = true;
+                    break;
+                  }
+                }
+              }
+              return isDataRow;
+            }).toList();
             _isLoading = false;
           });
         }
@@ -282,15 +363,40 @@ class _HomeScreenState extends State<HomeScreen> {
       'party': ['Edited_Party'],
       'grade': ['Edited_Grade'],
       'lot no': ['Edited_LOT'],
-      'invoice weight': ['Edited_Charcoal_weight_kg', 'Edited_INVOICE WEIGHT'],
+      'invoice weight': [
+        'Edited_Charcoal_weight_kg',
+        'Edited_INVOICE_WEIGHT',
+        'Edited_INVOICE WEIGHT',
+      ],
       'received wt': ['Edited_Received_Wt'],
-      'moisture': ['Edited_Moisture'],
+      'moisture': ['Edited_Moisture', 'Edit_MOISTURE'],
       'bag wt': ['Edited_Bag_wt', 'Edited_BAG_WT', 'Edit_Bag_wt'],
-      'stone': ['Edited_Stone'],
+      'stone': ['Edited_Stone', 'Edit_Stone'],
+      'dust': ['Edited_DUST', 'Edit_DUST'],
+      'unburn': ['Edited_UNBURN', 'Edit_UNBURN'],
       'carbon per kg/price': ['Edited_CARBON PER KG/PRICE'],
-      'invoice value': ['Edited_CARBON PER KG/PRICE'],
+      'invoice value': [
+        'Edited_CARBON PER KG/PRICE',
+        'Edited_CHARCOAL PER KG/PRICE',
+      ],
       'weight difference': ['Edited_Moisture'],
       '₹ carbon per kg/price': ['Edited_CARBON PER KG/PRICE'],
+      'charcoal per kg/price': [
+        'Edited_CHARCOAL PER KG/PRICE',
+        'Edited_CARBON PER KG/PRICE',
+      ],
+      '₹ charcoal per kg/price': [
+        'Edited_CHARCOAL PER KG/PRICE',
+        'Edited_CARBON PER KG/PRICE',
+      ],
+      'charcoal value': [
+        'Edited_CHARCOAL PER KG/PRICE',
+        'Edited_CARBON PER KG/PRICE',
+      ],
+      '₹ charcoal value': [
+        'Edited_CHARCOAL PER KG/PRICE',
+        'Edited_CARBON PER KG/PRICE',
+      ],
       'input qty': ['Edited_INPUT_Qty'],
       'output ctc': ['Edited_OUTPUT_CTC'],
       'output qty': ['Edited_OUTPUT_Qty'],
@@ -369,6 +475,11 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!hasDate) {
       editColumns.insert(0, 'Date');
     }
+
+    debugPrint('=== EDIT SHEET OPENED ===');
+    debugPrint('Sheet: ${_getSheetToFetch()}');
+    debugPrint('editColumns: $editColumns');
+    debugPrint('item keys: ${item.keys.toList()}');
 
     final isOtherMap = <String, bool>{};
 
@@ -509,14 +620,37 @@ class _HomeScreenState extends State<HomeScreen> {
                               _getSheetToFetch().toLowerCase() == 'carboninput';
 
                           bool isCellLocked = false;
+                          bool hasExplicitNo = false;
                           final lockColNames = _getLockColumnNames(col);
                           for (final lockColName in lockColNames) {
                             final actualLockKey = item.keys.firstWhere(
-                                (k) => k.toLowerCase() == lockColName.toLowerCase(),
-                                orElse: () => '');
-                            if (actualLockKey.isNotEmpty && item[actualLockKey]?.toString().trim().toUpperCase() == 'YES') {
-                              isCellLocked = true;
+                              (k) =>
+                                  k.toLowerCase() == lockColName.toLowerCase(),
+                              orElse: () => '',
+                            );
+                            if (actualLockKey.isNotEmpty) {
+                              final val =
+                                  item[actualLockKey]
+                                      ?.toString()
+                                      .trim()
+                                      .toUpperCase() ??
+                                  '';
+                              if (val == 'YES') {
+                                isCellLocked = true;
+                              } else if (val == 'NO') {
+                                hasExplicitNo = true;
+                              }
                             }
+                          }
+                          if (hasExplicitNo) {
+                            isCellLocked =
+                                false; // Override bug-created duplicates if admin explicitly said NO
+                          }
+
+                          // Lock the Date field for anyone who is not an Admin
+                          if (col.toLowerCase() == 'date' &&
+                              _role.toLowerCase() != 'admin') {
+                            isCellLocked = true;
                           }
 
                           Widget inputField;
@@ -530,20 +664,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                 color: Color(0xFF334155),
                               ),
                               onTap: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: const Text(
-                                      'Edit Locked. If you want to edit, please contact admin.',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    backgroundColor: Colors.redAccent.shade200,
-                                    behavior: SnackBarBehavior.floating,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                  ),
+                                _showOverlayToast(
+                                  context,
+                                  'Edit Locked. If you want to edit, please contact admin.',
                                 );
                               },
                               decoration: InputDecoration(
@@ -841,19 +964,45 @@ class _HomeScreenState extends State<HomeScreen> {
                       child:
                           InkWell(
                             onTap: () async {
+                              debugPrint('=== SAVE BUTTON TAPPED ===');
                               final updatedData = <String, String>{};
                               controllers.forEach((key, controller) {
                                 final textVal = controller.text.trim();
                                 updatedData[key] = textVal;
-                                
+
                                 // Explicitly map to the exact lock column
-                                if (textVal.isNotEmpty && controller.text.trim() != item[key]) {
+                                if (textVal.isNotEmpty &&
+                                    controller.text.trim() != item[key]) {
                                   final lockColNames = _getLockColumnNames(key);
-                                  for (final lockColName in lockColNames) {
-                                    final actualLockKey = item.keys.firstWhere(
-                                        (k) => k.toLowerCase() == lockColName.toLowerCase(),
-                                        orElse: () => lockColName);
-                                    updatedData[actualLockKey] = 'YES';
+                                  if (lockColNames.isNotEmpty) {
+                                    String targetLockKey = lockColNames.first;
+                                    for (final lockColName in lockColNames) {
+                                      final actualLockKey = item.keys
+                                          .firstWhere(
+                                            (k) =>
+                                                k.toLowerCase() ==
+                                                lockColName.toLowerCase(),
+                                            orElse: () => '',
+                                          );
+                                      if (actualLockKey.isNotEmpty) {
+                                        targetLockKey = actualLockKey;
+                                        break;
+                                      }
+                                    }
+                                    String lockValue = 'YES';
+                                    final lowerKey = key.toLowerCase().trim();
+                                    if (lowerKey == 'moisture' ||
+                                        lowerKey == 'unburn' ||
+                                        lowerKey == 'dust' ||
+                                        lowerKey == 'stone' ||
+                                        lowerKey == 'invoice weight' ||
+                                        lowerKey == 'bag wt' ||
+                                        lowerKey == 'input qty' ||
+                                        lowerKey == 'output qty' ||
+                                        lowerKey == 'output ctc') {
+                                      lockValue = 'NO';
+                                    }
+                                    updatedData[targetLockKey] = lockValue;
                                   }
                                 }
                               });
@@ -1006,12 +1155,29 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final actualUpdates = <String, String>{};
 
+    debugPrint('=== SAVE EDIT DEBUG ===');
+    debugPrint('Sheet: ${_getSheetToFetch()}');
+    debugPrint('Identifier: $identifierKey = $targetIvValue');
+    debugPrint('updatedData keys: ${updatedData.keys.toList()}');
+
     updatedData.forEach((key, val) {
-      final actualKey = alignedRecord.keys.firstWhere(
-        (k) =>
-            k.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '') ==
-            key.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), ''),
-        orElse: () => key,
+      final normalizedKey = key.toLowerCase().replaceAll(
+        RegExp(r'[^a-z0-9]'),
+        '',
+      );
+      String normalizedKeyAlias = normalizedKey;
+      if (normalizedKey.contains('carbonperkgprice')) {
+        normalizedKeyAlias = 'charcoalperkgprice';
+      } else if (normalizedKey.contains('charcoalperkgprice')) {
+        normalizedKeyAlias = 'carbonperkgprice';
+      }
+
+      final actualKey = alignedRecord.keys.firstWhere((k) {
+        final normK = k.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+        return normK == normalizedKey || normK == normalizedKeyAlias;
+      }, orElse: () => key);
+      debugPrint(
+        '  key="$key" normalizedKey="$normalizedKey" => actualKey="$actualKey" | old="${alignedRecord[actualKey]}" new="$val" | changed=${alignedRecord[actualKey] != val}',
       );
       if (alignedRecord[actualKey] != val) {
         actualUpdates[actualKey] = val;
@@ -1019,7 +1185,10 @@ class _HomeScreenState extends State<HomeScreen> {
       alignedRecord[actualKey] = val;
     });
 
+    debugPrint('actualUpdates: $actualUpdates');
+
     if (actualUpdates.isEmpty) {
+      debugPrint('=== NO CHANGES DETECTED, SKIPPING ===');
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('edited_${_getSheetToFetch()}_$targetIvValue', true);
       return;
@@ -1040,6 +1209,7 @@ class _HomeScreenState extends State<HomeScreen> {
         sheetName: _getSheetToFetch(),
         identifierKey: identifierKey,
         identifierValue: targetIvValue,
+        originalData: originalItem,
       );
 
       if (error != null) {
@@ -1525,21 +1695,19 @@ class _HomeScreenState extends State<HomeScreen> {
                               readOnly: isDate || isInputFeed || isOutputGrade,
                               onTap: () {
                                 if (isInputFeed || isOutputGrade) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'You cannot edit ${col} in Kiln data.',
-                                      ),
-                                      backgroundColor:
-                                          Colors.redAccent.shade200,
-                                      behavior: SnackBarBehavior.floating,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                    ),
+                                  _showOverlayToast(
+                                    context,
+                                    'You cannot edit $col in Kiln data.',
                                   );
                                 } else if (isDate) {
-                                  _showDatePicker(context, controllers[col]!);
+                                  if (_role.toLowerCase() != 'admin') {
+                                    _showOverlayToast(
+                                      context,
+                                      'Only Admins can change the Date.',
+                                    );
+                                  } else {
+                                    _showDatePicker(context, controllers[col]!);
+                                  }
                                 }
                               },
                               decoration: InputDecoration(
@@ -1606,10 +1774,18 @@ class _HomeScreenState extends State<HomeScreen> {
       // Auto-lock fields explicitly for new records!
       if (val != null && val.toString().trim().isNotEmpty) {
         final lockColNames = _getLockColumnNames(actualKey);
-        for (final lockColName in lockColNames) {
-          final targetLockKey = alignedRecord.keys.firstWhere(
+        if (lockColNames.isNotEmpty) {
+          String targetLockKey = lockColNames.first;
+          for (final lockColName in lockColNames) {
+            final actualLockKey = alignedRecord.keys.firstWhere(
               (k) => k.toLowerCase() == lockColName.toLowerCase(),
-              orElse: () => lockColName);
+              orElse: () => '',
+            );
+            if (actualLockKey.isNotEmpty) {
+              targetLockKey = actualLockKey;
+              break;
+            }
+          }
           alignedRecord[targetLockKey] = 'YES';
         }
       }
@@ -2357,12 +2533,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       role: _role,
                     )
                   : _currentIndex == 4
-                  ? AiAssistantScreen(
-                      key: const ValueKey('ai'),
-                      dataList: _dataList,
-                      permittedColumns: _permittedColumns,
-                      accessPermissions: _accessPermissions,
-                      sheetName: _selectedSheet,
+                  ? IssueRaisingScreen(
+                      key: const ValueKey('issue'),
+                      loginId: widget.loginId,
                     )
                   // ── RECORDS TAB (index 0) ──
                   : RefreshIndicator(
@@ -2912,9 +3085,12 @@ class _HomeScreenState extends State<HomeScreen> {
             builder: (context) {
               final width = MediaQuery.of(context).size.width;
               final totalUsable =
-                  width - 40 - 20; // 40 for outer padding, 20 for inner padding
-              final activeWidth = totalUsable * 0.38;
-              final inactiveWidth = totalUsable * 0.15; // 38 + 15*4 = 98%
+                  width -
+                  40 -
+                  20 -
+                  4; // 40 for outer padding, 20 for inner padding, 4 for borders
+              final activeWidth = totalUsable * 0.36;
+              final inactiveWidth = totalUsable * 0.14; // 36 + 14*4 = 92%
 
               return Container(
                     decoration: BoxDecoration(
@@ -2981,8 +3157,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                               _buildDynamicPill(
                                 4,
-                                Icons.auto_awesome_rounded,
-                                'AI',
+                                Icons.warning_rounded,
+                                'Issue',
                                 activeWidth,
                                 inactiveWidth,
                               ),
