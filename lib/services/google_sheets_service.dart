@@ -52,6 +52,7 @@ class GoogleSheetsService {
     String? sheetName,
     String? identifierKey,
     String? identifierValue,
+    Map<String, String>? originalData,
   }) async {
     try {
       String url = '$baseUrl/clearRowToNil';
@@ -67,6 +68,7 @@ class GoogleSheetsService {
           'permittedColumns': permittedColumns,
           'identifierKey': identifierKey,
           'identifierValue': identifierValue,
+          'originalData': originalData,
         }),
       );
 

@@ -401,7 +401,13 @@ class _HomeScreenState extends State<HomeScreen> {
       'output ctc': ['Edited_OUTPUT_CTC'],
       'output qty': ['Edited_OUTPUT_Qty'],
     };
-    return mapping[dataColumn.toLowerCase().trim()] ?? [];
+    final List<String> dynamicLockNames = [
+      'Edited_$dataColumn',
+      'Edit_$dataColumn',
+      'Edited_${dataColumn.replaceAll(' ', '_')}',
+      'Edit_${dataColumn.replaceAll(' ', '_')}',
+    ];
+    return (mapping[dataColumn.toLowerCase().trim()] ?? []) + dynamicLockNames;
   }
 
   String _getEditIdentifier(Map<String, String> item) {
@@ -969,42 +975,6 @@ class _HomeScreenState extends State<HomeScreen> {
                               controllers.forEach((key, controller) {
                                 final textVal = controller.text.trim();
                                 updatedData[key] = textVal;
-
-                                // Explicitly map to the exact lock column
-                                if (textVal.isNotEmpty &&
-                                    controller.text.trim() != item[key]) {
-                                  final lockColNames = _getLockColumnNames(key);
-                                  if (lockColNames.isNotEmpty) {
-                                    String targetLockKey = lockColNames.first;
-                                    for (final lockColName in lockColNames) {
-                                      final actualLockKey = item.keys
-                                          .firstWhere(
-                                            (k) =>
-                                                k.toLowerCase() ==
-                                                lockColName.toLowerCase(),
-                                            orElse: () => '',
-                                          );
-                                      if (actualLockKey.isNotEmpty) {
-                                        targetLockKey = actualLockKey;
-                                        break;
-                                      }
-                                    }
-                                    String lockValue = 'YES';
-                                    final lowerKey = key.toLowerCase().trim();
-                                    if (lowerKey == 'moisture' ||
-                                        lowerKey == 'unburn' ||
-                                        lowerKey == 'dust' ||
-                                        lowerKey == 'stone' ||
-                                        lowerKey == 'invoice weight' ||
-                                        lowerKey == 'bag wt' ||
-                                        lowerKey == 'input qty' ||
-                                        lowerKey == 'output qty' ||
-                                        lowerKey == 'output ctc') {
-                                      lockValue = 'NO';
-                                    }
-                                    updatedData[targetLockKey] = lockValue;
-                                  }
-                                }
                               });
                               Navigator.pop(context);
                               await _saveEditAndRefresh(item, updatedData);
@@ -1866,17 +1836,22 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _performDelete(Map<String, String> item) async {
     final originalList = List<Map<String, String>>.from(_dataList);
 
-    // Identify row key identifier (try IV NO first, then Date, then fallback to first column)
-    String identifierKey = item.keys.firstWhere(
-      (k) => k.toLowerCase().trim() == 'iv no',
-      orElse: () => '',
-    );
+    String identifierKey = '';
+
+    final preferredKeys = ['ivno', 'chno', 'challanno', 'date'];
+    for (String pk in preferredKeys) {
+      final matchedKey = item.keys.firstWhere(
+        (k) => k.toLowerCase().replaceAll(' ', '') == pk,
+        orElse: () => '',
+      );
+      if (matchedKey.isNotEmpty) {
+        identifierKey = matchedKey;
+        break;
+      }
+    }
 
     if (identifierKey.isEmpty && item.keys.isNotEmpty) {
-      identifierKey = item.keys.firstWhere(
-        (k) => k.toLowerCase().trim() == 'date',
-        orElse: () => item.keys.first,
-      );
+      identifierKey = item.keys.first;
     }
 
     if (identifierKey.isEmpty) {
@@ -1889,9 +1864,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final targetIvValue = item[identifierKey] ?? '';
 
     setState(() {
-      _dataList.removeWhere(
-        (rec) => (rec[identifierKey] ?? '') == targetIvValue,
-      );
+      _dataList.removeWhere((rec) => rec == item);
     });
 
     try {
@@ -1901,6 +1874,7 @@ class _HomeScreenState extends State<HomeScreen> {
         sheetName: _getSheetToFetch(),
         identifierKey: identifierKey,
         identifierValue: targetIvValue,
+        originalData: item,
       );
 
       if (error != null) {
