@@ -512,6 +512,7 @@ class _ChartCardState extends State<_ChartCard> {
   late PageController _pageController;
   int _currentPage = 0;
   Timer? _timer;
+  bool _isHovering = false;
 
   @override
   void initState() {
@@ -522,7 +523,7 @@ class _ChartCardState extends State<_ChartCard> {
 
   void _startAutoPlay() {
     _timer = Timer.periodic(const Duration(seconds: 3), (Timer timer) {
-      if (_pageController.hasClients) {
+      if (_pageController.hasClients && !_isHovering) {
         int nextPage = _currentPage == 0 ? 1 : 0;
         _pageController.animateToPage(
           nextPage,
@@ -690,14 +691,18 @@ class _ChartCardState extends State<_ChartCard> {
                     const SizedBox(height: 32),
                     SizedBox(
                       height: 220,
-                      child: PageView(
-                        controller: _pageController,
-                        physics: const BouncingScrollPhysics(),
-                        onPageChanged: (index) {
-                          setState(() {
-                            _currentPage = index;
-                          });
-                        },
+                      child: Listener(
+                        onPointerDown: (_) => _isHovering = true,
+                        onPointerUp: (_) => _isHovering = false,
+                        onPointerCancel: (_) => _isHovering = false,
+                        child: PageView(
+                          controller: _pageController,
+                          physics: const BouncingScrollPhysics(),
+                          onPageChanged: (index) {
+                            setState(() {
+                              _currentPage = index;
+                            });
+                          },
                         children: [
                           _buildPointChart(
                                 chartData,
@@ -729,6 +734,7 @@ class _ChartCardState extends State<_ChartCard> {
                                 color: Colors.white.withValues(alpha: 0.2),
                               ),
                         ],
+                      ),
                       ),
                     ),
                   ],

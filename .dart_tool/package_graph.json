@@ -16,6 +16,7 @@
         "http",
         "image_picker",
         "intl",
+        "liquid_pull_to_refresh",
         "path_provider",
         "pdf",
         "record",
@@ -66,6 +67,13 @@
         "stream_channel",
         "test_api",
         "vector_math"
+      ]
+    },
+    {
+      "name": "liquid_pull_to_refresh",
+      "version": "3.0.1",
+      "dependencies": [
+        "flutter"
       ]
     },
     {
@@ -405,6 +413,11 @@
         "crypto",
         "fixnum"
       ]
+    },
+    {
+      "name": "synchronized",
+      "version": "3.4.0+1",
+      "dependencies": []
     },
     {
       "name": "file",
@@ -1163,11 +1176,6 @@
         "meta",
         "pub_semver"
       ]
-    },
-    {
-      "name": "synchronized",
-      "version": "3.4.0+1",
-      "dependencies": []
     }
   ],
   "configVersion": 1

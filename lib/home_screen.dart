@@ -6,7 +6,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
+import 'package:liquid_pull_to_refresh/liquid_pull_to_refresh.dart';
 import 'services/google_sheets_service.dart';
 import 'record_details_screen.dart';
 import 'dashboard_screen.dart';
@@ -345,6 +345,18 @@ class _HomeScreenState extends State<HomeScreen> {
               return isDataRow;
             }).toList();
             _isLoading = false;
+            
+            if (parsedData.isNotEmpty) {
+              final sheetColumns = parsedData.first.keys.map((k) => k.toLowerCase().trim()).toList();
+              _permittedColumns.sort((a, b) {
+                final aIndex = sheetColumns.indexOf(a.toLowerCase().trim());
+                final bIndex = sheetColumns.indexOf(b.toLowerCase().trim());
+                if (aIndex == -1 && bIndex == -1) return 0;
+                if (aIndex == -1) return 1;
+                if (bIndex == -1) return -1;
+                return aIndex.compareTo(bIndex);
+              });
+            }
           });
         }
       } else {
@@ -477,6 +489,18 @@ class _HomeScreenState extends State<HomeScreen> {
     String targetIvValue = _getEditIdentifier(item);
 
     final editColumns = List<String>.from(_permittedColumns);
+    if (_dataList.isNotEmpty) {
+      final sheetColumns = _dataList.first.keys.map((k) => k.toLowerCase().trim()).toList();
+      editColumns.sort((a, b) {
+        final aIndex = sheetColumns.indexOf(a.toLowerCase().trim());
+        final bIndex = sheetColumns.indexOf(b.toLowerCase().trim());
+        if (aIndex == -1 && bIndex == -1) return 0;
+        if (aIndex == -1) return 1;
+        if (bIndex == -1) return -1;
+        return aIndex.compareTo(bIndex);
+      });
+    }
+
     final hasDate = editColumns.any((c) => c.toLowerCase() == 'date');
     if (!hasDate) {
       editColumns.insert(0, 'Date');
@@ -1404,6 +1428,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _showAddSheet() {
     final addColumns = List<String>.from(_permittedColumns);
+    if (_dataList.isNotEmpty) {
+      final sheetColumns = _dataList.first.keys.map((k) => k.toLowerCase().trim()).toList();
+      addColumns.sort((a, b) {
+        final aIndex = sheetColumns.indexOf(a.toLowerCase().trim());
+        final bIndex = sheetColumns.indexOf(b.toLowerCase().trim());
+        if (aIndex == -1 && bIndex == -1) return 0;
+        if (aIndex == -1) return 1;
+        if (bIndex == -1) return -1;
+        return aIndex.compareTo(bIndex);
+      });
+    }
+
     final hasDate = addColumns.any((c) => c.toLowerCase() == 'date');
     if (!hasDate) {
       addColumns.insert(0, 'Date');
@@ -2512,10 +2548,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       loginId: widget.loginId,
                     )
                   // ── RECORDS TAB (index 0) ──
-                  : RefreshIndicator(
+                  : LiquidPullToRefresh(
                       key: const ValueKey('records'),
-                      color: const Color(0xFF667EEA),
+                      color: const Color(0xFF667EEA), // The background color of the liquid
+                      backgroundColor: Colors.white, // The color of the icon
                       onRefresh: _fetchSheetData,
+                      animSpeedFactor: 2.0,
+                      showChildOpacityTransition: false,
                       child: CustomScrollView(
                         physics: const BouncingScrollPhysics(
                           parent: AlwaysScrollableScrollPhysics(),
