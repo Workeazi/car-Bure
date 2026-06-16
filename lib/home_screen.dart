@@ -39,12 +39,14 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = true;
   List<Map<String, String>> _dataList = [];
   List<String> _permittedColumns = [];
+  List<String> _viewButNoEditColumns = [];
   String _accessPermissions = '';
   String _role = 'Member';
   int _currentIndex = 0;
 
   late String _currentPermissions;
   late String _currentAccessPermissions;
+  late String _currentViewButNoEdit;
 
   final List<String> _availableSheets = [];
   String _selectedSheet = '';
@@ -124,6 +126,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _currentPermissions = widget.permissions;
     _currentAccessPermissions = widget.accessPermissions;
+    _currentViewButNoEdit = '';
     _role = widget.role.isNotEmpty ? widget.role : 'Member';
     _initializeSheets();
     _parsePermissions();
@@ -234,6 +237,42 @@ class _HomeScreenState extends State<HomeScreen> {
     _permittedColumns = columns
         .where((e) => e.isNotEmpty && e.toLowerCase() != 'dashboard')
         .toList();
+
+    // Parse View_But_NE Columns
+    List<String> viewButNoEdit = [];
+    try {
+      if (_currentViewButNoEdit.trim().startsWith('[')) {
+        final List<dynamic> parsedVbne = jsonDecode(_currentViewButNoEdit);
+        for (var item in parsedVbne) {
+          if (item is Map && item['sheet'] != null) {
+            String sheetName = item['sheet'].toString().trim().toLowerCase();
+            if (sheetName == currentSheet || sheetName == 'all') {
+              final fields = item['Permissions'] ?? item['fields'] ?? item['View_But_NE'];
+              if (fields is List) {
+                viewButNoEdit = fields.map((e) => e.toString().trim()).toList();
+              } else if (fields is String) {
+                viewButNoEdit = fields.split(',').map((e) => e.trim()).toList();
+              }
+              break;
+            }
+          }
+        }
+      } else {
+        viewButNoEdit = _currentViewButNoEdit.split(',').map((e) => e.trim()).toList();
+      }
+    } catch (e) {
+      viewButNoEdit = _currentViewButNoEdit.split(',').map((e) => e.trim()).toList();
+    }
+    
+    _viewButNoEditColumns = viewButNoEdit.where((e) => e.isNotEmpty).toList();
+
+    // Ensure all View_But_NE columns are also present in the main _permittedColumns
+    // so they actually appear in the UI (cards, Add/Edit sheets, etc.)
+    for (var col in _viewButNoEditColumns) {
+      if (!_permittedColumns.any((p) => p.toLowerCase() == col.toLowerCase())) {
+        _permittedColumns.add(col);
+      }
+    }
   }
 
   @override
@@ -286,23 +325,28 @@ class _HomeScreenState extends State<HomeScreen> {
               'AccessPermissions',
               'Access Permissions',
             ]);
+            final newViewButNe = getValue(user, ['View_But_NE', 'View But NE']);
 
             final newPermsStr = newPerms.toString().trim();
             final newAccessStr = newAccess.toString().trim();
+            final newViewButNeStr = newViewButNe.toString().trim();
+            
             final currentPermsStr = _currentPermissions.trim();
             final currentAccessStr = _currentAccessPermissions.trim();
+            final currentViewButNeStr = _currentViewButNoEdit.trim();
 
             if (newPermsStr != currentPermsStr ||
-                newAccessStr != currentAccessStr) {
+                newAccessStr != currentAccessStr ||
+                newViewButNeStr != currentViewButNeStr) {
               final prefs = await SharedPreferences.getInstance();
               await prefs.setString('permissions', newPermsStr);
               await prefs.setString('accessPermissions', newAccessStr);
+              await prefs.setString('viewButNoEdit', newViewButNeStr);
 
               if (mounted) {
-                // Not calling setState yet to avoid double rebuild
-                // because we'll call setState for _dataList right below
                 _currentPermissions = newPermsStr;
                 _currentAccessPermissions = newAccessStr;
+                _currentViewButNoEdit = newViewButNeStr;
                 _initializeSheets(); // Rebuild sheets list
                 _parsePermissions();
               }
@@ -677,6 +721,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                 false; // Override bug-created duplicates if admin explicitly said NO
                           }
 
+                          // View_But_NE Logic
+                          bool isViewButNE = _viewButNoEditColumns.any((v) => v.toLowerCase() == col.toLowerCase());
+                          if (isViewButNE) {
+                            isCellLocked = true;
+                          }
+
                           // Lock the Date field for anyone who is not an Admin
                           if (col.toLowerCase() == 'date' &&
                               _role.toLowerCase() != 'admin') {
@@ -890,6 +940,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                   isBagWt ||
                                   isInputFeed ||
                                   isOutputGrade,
+                              onChanged: (val) {
+                                _liveEvaluateFormulas(controllers, setSheetState);
+                              },
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
@@ -1424,6 +1477,37 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  // ─── LIVE FORMULA EVALUATOR ─────────────────────────────────────────────────
+  void _liveEvaluateFormulas(Map<String, TextEditingController> controllers, StateSetter setSheetState) {
+    bool hasChanges = false;
+    
+    // Example: Total Consumption = End Reading - Start Reading
+    if (controllers.containsKey('Total Consumption')) {
+      final endKey = controllers.keys.firstWhere((k) => k.toLowerCase() == 'end reading', orElse: () => '');
+      final startKey = controllers.keys.firstWhere((k) => k.toLowerCase() == 'start reading', orElse: () => '');
+      
+      if (endKey.isNotEmpty && startKey.isNotEmpty) {
+        final endVal = double.tryParse(controllers[endKey]!.text);
+        final startVal = double.tryParse(controllers[startKey]!.text);
+        
+        if (endVal != null && startVal != null) {
+          final newValue = (endVal - startVal).toStringAsFixed(2);
+          if (controllers['Total Consumption']!.text != newValue) {
+            controllers['Total Consumption']!.text = newValue;
+            hasChanges = true;
+          }
+        }
+      }
+    }
+    
+    // You can add more specific formula logic here for other columns as needed.
+    // e.g. if (controllers.containsKey('Profit')) { ... }
+    
+    if (hasChanges) {
+      setSheetState(() {});
+    }
+  }
+
   // ─── ADD NEW RECORD ACTION ──────────────────────────────────────────────────
 
   void _showAddSheet() {
@@ -1696,11 +1780,21 @@ class _HomeScreenState extends State<HomeScreen> {
                               ],
                             );
                           } else {
+                            bool isViewButNE = _viewButNoEditColumns.any((v) => v.toLowerCase() == col.toLowerCase());
+
                             inputField = TextField(
                               controller: controllers[col],
-                              readOnly: isDate || isInputFeed || isOutputGrade,
+                              readOnly: isDate || isInputFeed || isOutputGrade || isViewButNE,
+                              onChanged: (val) {
+                                _liveEvaluateFormulas(controllers, setSheetState);
+                              },
                               onTap: () {
-                                if (isInputFeed || isOutputGrade) {
+                                if (isViewButNE) {
+                                  _showOverlayToast(
+                                    context,
+                                    'You cannot edit $col directly.',
+                                  );
+                                } else if (isInputFeed || isOutputGrade) {
                                   _showOverlayToast(
                                     context,
                                     'You cannot edit $col in Kiln data.',
