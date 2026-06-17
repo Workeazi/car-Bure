@@ -390,17 +390,7 @@ class _HomeScreenState extends State<HomeScreen> {
             }).toList();
             _isLoading = false;
             
-            if (parsedData.isNotEmpty) {
-              final sheetColumns = parsedData.first.keys.map((k) => k.toLowerCase().trim()).toList();
-              _permittedColumns.sort((a, b) {
-                final aIndex = sheetColumns.indexOf(a.toLowerCase().trim());
-                final bIndex = sheetColumns.indexOf(b.toLowerCase().trim());
-                if (aIndex == -1 && bIndex == -1) return 0;
-                if (aIndex == -1) return 1;
-                if (bIndex == -1) return -1;
-                return aIndex.compareTo(bIndex);
-              });
-            }
+            // The _permittedColumns now retains the order from the permissions JSON.
           });
         }
       } else {
@@ -1695,7 +1685,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     color: Color(0xFF667EEA),
                                   ),
                                   decoration: InputDecoration(
-                                    labelText: col,
+                                    labelText: col.toUpperCase(),
                                     labelStyle: const TextStyle(
                                       color: Colors.grey,
                                     ),
@@ -1746,7 +1736,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   TextField(
                                         controller: controllers[col],
                                         decoration: InputDecoration(
-                                          labelText: 'Enter Other Party',
+                                          labelText: 'ENTER OTHER PARTY',
                                           labelStyle: const TextStyle(
                                             color: Colors.grey,
                                           ),
@@ -1811,7 +1801,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 }
                               },
                               decoration: InputDecoration(
-                                labelText: col,
+                                labelText: col.toUpperCase(),
                                 labelStyle: const TextStyle(color: Colors.grey),
                                 suffixIcon: isDate
                                     ? const Icon(
@@ -3323,9 +3313,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Center(
                     child: Container(
@@ -3477,6 +3468,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   }),
                   const SizedBox(height: 16),
                 ],
+              ),
               ),
             ),
           ),

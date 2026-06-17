@@ -1,5 +1,4 @@
 import 'package:http/http.dart' as http;
-import 'dart:convert';
 
 void main() async {
   final url = 'https://docs.google.com/spreadsheets/d/1lkImcQTYrsKBc4eafO6AOyRqlqhXTXnn40gYb4B5jzM/gviz/tq?tqx=out:csv&gid=751895921';

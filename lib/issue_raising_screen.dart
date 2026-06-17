@@ -372,14 +372,14 @@ class _IssueRaisingScreenState extends State<IssueRaisingScreen> {
                     return ListView.separated(
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
                       itemCount: myIssues.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 16),
+                      separatorBuilder: (_, _) => const SizedBox(height: 16),
                       itemBuilder: (context, index) {
                         final issue = myIssues[index];
                         final date = issue['Date'] ?? 'Unknown Date';
                         final priority = issue['Priority'] ?? 'Normal';
                         final problem = issue['Problem_text'] ?? 'No description';
                         final status = issue['Status'] ?? 'Pending';
-                        final image = issue['Problem_Images'];
+                        final image = issue['Problem_Images'] ?? issue['PROBLEM_IMAGES'];
                         final voice = issue['Problem_Voice-Message'];
 
                         Color statusColor = Colors.orange;

@@ -480,7 +480,7 @@ class _RecordDetailsScreenState extends State<RecordDetailsScreen> {
                                               children: [
                                                 Expanded(
                                                   child: Text(
-                                                    col,
+                                                    col.toUpperCase(),
                                                     style: const TextStyle(
                                                       fontSize: 14,
                                                       color: Color(0xFF718096),
