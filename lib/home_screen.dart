@@ -292,6 +292,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted && _dataList.isEmpty) {
       setState(() => _isLoading = true);
     }
+    
+    // Force re-parsing of permissions here so any hot-reloads instantly pick up the exact JSON order
+    _parsePermissions();
 
     String getValue(Map<String, String> user, List<String> possibleKeys) {
       for (final key in possibleKeys) {
@@ -369,8 +372,11 @@ class _HomeScreenState extends State<HomeScreen> {
           setState(() {
             _dataList = parsedData.where((item) {
               // Ignore rows that are just repeated headers or empty title rows
-              final dateVal =
-                  item['Date']?.toString().toLowerCase().trim() ?? '';
+              final actualDateKey = item.keys.firstWhere(
+                  (k) => k.toLowerCase().trim() == 'date', orElse: () => '');
+              final dateVal = actualDateKey.isNotEmpty
+                  ? (item[actualDateKey]?.toString().toLowerCase().trim() ?? '')
+                  : '';
               if (dateVal == 'date' || dateVal == 'iv no' || dateVal.isEmpty)
                 return false;
 
@@ -523,17 +529,7 @@ class _HomeScreenState extends State<HomeScreen> {
     String targetIvValue = _getEditIdentifier(item);
 
     final editColumns = List<String>.from(_permittedColumns);
-    if (_dataList.isNotEmpty) {
-      final sheetColumns = _dataList.first.keys.map((k) => k.toLowerCase().trim()).toList();
-      editColumns.sort((a, b) {
-        final aIndex = sheetColumns.indexOf(a.toLowerCase().trim());
-        final bIndex = sheetColumns.indexOf(b.toLowerCase().trim());
-        if (aIndex == -1 && bIndex == -1) return 0;
-        if (aIndex == -1) return 1;
-        if (bIndex == -1) return -1;
-        return aIndex.compareTo(bIndex);
-      });
-    }
+    // The editColumns naturally inherit the strict order of _permittedColumns
 
     final hasDate = editColumns.any((c) => c.toLowerCase() == 'date');
     if (!hasDate) {
@@ -660,6 +656,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         itemBuilder: (context, index) {
                           final col = editColumns[index];
                           final isDate = col.toLowerCase() == 'date';
+                          final sheetLower = _getSheetToFetch().toLowerCase();
+                          final isTimeColumn = (sheetLower.contains('boiler') || sheetLower.contains('l&t water') || sheetLower.contains('l & t water') || sheetLower.contains('l&t_water')) &&
+                              (col.toLowerCase() == 'in time' || col.toLowerCase() == 'clock time' || col.toLowerCase() == 'close time');
                           final isBagWt =
                               col.toLowerCase().replaceAll(
                                 RegExp(r'[^a-z0-9]'),
@@ -927,6 +926,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               controller: controllers[col],
                               readOnly:
                                   isDate ||
+                                  isTimeColumn ||
                                   isBagWt ||
                                   isInputFeed ||
                                   isOutputGrade,
@@ -956,6 +956,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                   );
                                 } else if (isDate) {
                                   _showDatePicker(context, controllers[col]!);
+                                } else if (isTimeColumn) {
+                                  _showTimePicker(context, controllers[col]!);
                                 }
                               },
                               decoration: InputDecoration(
@@ -983,7 +985,20 @@ class _HomeScreenState extends State<HomeScreen> {
                                           size: 20,
                                         ),
                                       )
-                                    : null,
+                                    : (isTimeColumn
+                                        ? Container(
+                                            margin: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF667EEA).withOpacity(0.1),
+                                              borderRadius: BorderRadius.circular(10),
+                                            ),
+                                            child: const Icon(
+                                              Icons.access_time_rounded,
+                                              color: Color(0xFF667EEA),
+                                              size: 20,
+                                            ),
+                                          )
+                                        : null),
                                 floatingLabelBehavior:
                                     FloatingLabelBehavior.auto,
                                 contentPadding: const EdgeInsets.symmetric(
@@ -1467,6 +1482,59 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _showTimePicker(
+    BuildContext context,
+    TextEditingController controller,
+  ) async {
+    TimeOfDay initialTime = TimeOfDay.now();
+    try {
+      if (controller.text.isNotEmpty) {
+        final parts = controller.text.split(RegExp(r'[: ]'));
+        if (parts.length >= 2) {
+          int hour = int.parse(parts[0]);
+          int min = int.parse(parts[1]);
+          if (controller.text.toLowerCase().contains('pm') && hour < 12) hour += 12;
+          if (controller.text.toLowerCase().contains('am') && hour == 12) hour = 0;
+          initialTime = TimeOfDay(hour: hour, minute: min);
+        }
+      }
+    } catch (_) {}
+
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: initialTime,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            timePickerTheme: TimePickerThemeData(
+              backgroundColor: Colors.white,
+              hourMinuteShape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              dayPeriodShape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              dialHandColor: const Color(0xFF667EEA),
+              dialBackgroundColor: Colors.grey.shade50,
+            ),
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF667EEA),
+              onPrimary: Colors.white,
+              onSurface: Colors.black87,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      if (context.mounted) {
+        controller.text = picked.format(context);
+      }
+    }
+  }
+
   // ─── LIVE FORMULA EVALUATOR ─────────────────────────────────────────────────
   void _liveEvaluateFormulas(Map<String, TextEditingController> controllers, StateSetter setSheetState) {
     bool hasChanges = false;
@@ -1502,17 +1570,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _showAddSheet() {
     final addColumns = List<String>.from(_permittedColumns);
-    if (_dataList.isNotEmpty) {
-      final sheetColumns = _dataList.first.keys.map((k) => k.toLowerCase().trim()).toList();
-      addColumns.sort((a, b) {
-        final aIndex = sheetColumns.indexOf(a.toLowerCase().trim());
-        final bIndex = sheetColumns.indexOf(b.toLowerCase().trim());
-        if (aIndex == -1 && bIndex == -1) return 0;
-        if (aIndex == -1) return 1;
-        if (bIndex == -1) return -1;
-        return aIndex.compareTo(bIndex);
-      });
-    }
+    // The addColumns naturally inherit the strict order of _permittedColumns
 
     final hasDate = addColumns.any((c) => c.toLowerCase() == 'date');
     if (!hasDate) {
@@ -1630,6 +1688,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         padding: const EdgeInsets.all(16),
                         children: addColumns.map((col) {
                           final isDate = col.toLowerCase() == 'date';
+                          final sheetLower = _getSheetToFetch().toLowerCase();
+                          final isTimeColumn = (sheetLower.contains('boiler') || sheetLower.contains('l&t water') || sheetLower.contains('l & t water') || sheetLower.contains('l&t_water')) &&
+                              (col.toLowerCase() == 'in time' || col.toLowerCase() == 'clock time' || col.toLowerCase() == 'close time');
                           final isKilnSheet =
                               _getSheetToFetch().toLowerCase().contains(
                                 'kiln',
@@ -1774,7 +1835,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                             inputField = TextField(
                               controller: controllers[col],
-                              readOnly: isDate || isInputFeed || isOutputGrade || isViewButNE,
+                              readOnly: isDate || isTimeColumn || isInputFeed || isOutputGrade || isViewButNE,
                               onChanged: (val) {
                                 _liveEvaluateFormulas(controllers, setSheetState);
                               },
@@ -1798,6 +1859,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                   } else {
                                     _showDatePicker(context, controllers[col]!);
                                   }
+                                } else if (isTimeColumn) {
+                                  _showTimePicker(context, controllers[col]!);
                                 }
                               },
                               decoration: InputDecoration(
@@ -1808,7 +1871,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                         Icons.calendar_today_outlined,
                                         color: Color(0xFF667EEA),
                                       )
-                                    : null,
+                                    : (isTimeColumn
+                                        ? const Icon(
+                                            Icons.access_time_rounded,
+                                            color: Color(0xFF667EEA),
+                                          )
+                                        : null),
                                 filled: true,
                                 fillColor: Colors.grey.shade50,
                                 enabledBorder: OutlineInputBorder(
@@ -2129,13 +2197,8 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
 
-    final displayFields = _permittedColumns
-        .where(
-          (col) =>
-              col.toLowerCase() != titleKeyLower &&
-              col.toLowerCase() != dateKeyLower,
-        )
-        .toList();
+    // Preserve exact order from permissions without filtering out title/date
+    final displayFields = _permittedColumns.toList();
 
     // Create a dynamic top margin to force a zigzag staggered effect
     final double topMargin = (index % 2 == 1) ? 30.0 : 0.0;
