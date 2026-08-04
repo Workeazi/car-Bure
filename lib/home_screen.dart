@@ -4,6 +4,7 @@ import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui';
+import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:liquid_pull_to_refresh/liquid_pull_to_refresh.dart';
@@ -14,6 +15,7 @@ import 'download_records_screen.dart';
 import 'profile_screen.dart';
 import 'issue_raising_screen.dart';
 import 'widgets/aesthetic_loader.dart';
+import 'widgets/inventory_checkout_dialog.dart';
 
 class HomeScreen extends StatefulWidget {
   final String loginId;
@@ -38,6 +40,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = true;
   List<Map<String, String>> _dataList = [];
+  final List<Map<String, dynamic>> _cartItems = [];
   List<String> _permittedColumns = [];
   List<String> _viewButNoEditColumns = [];
   String _accessPermissions = '';
@@ -121,6 +124,8 @@ class _HomeScreenState extends State<HomeScreen> {
   bool get _canWrite => _accessPermissions.toLowerCase().contains('write');
   bool get _canDelete => _accessPermissions.toLowerCase().contains('delete');
 
+  Timer? _pollingTimer;
+
   @override
   void initState() {
     super.initState();
@@ -131,6 +136,13 @@ class _HomeScreenState extends State<HomeScreen> {
     _initializeSheets();
     _parsePermissions();
     _fetchSheetData();
+
+    // Start background polling to continuously fetch new data
+    _pollingTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (mounted && !_isLoading) {
+        _fetchSheetData(isPolling: true);
+      }
+    });
   }
 
   void _initializeSheets() {
@@ -247,7 +259,8 @@ class _HomeScreenState extends State<HomeScreen> {
           if (item is Map && item['sheet'] != null) {
             String sheetName = item['sheet'].toString().trim().toLowerCase();
             if (sheetName == currentSheet || sheetName == 'all') {
-              final fields = item['Permissions'] ?? item['fields'] ?? item['View_But_NE'];
+              final fields =
+                  item['Permissions'] ?? item['fields'] ?? item['View_But_NE'];
               if (fields is List) {
                 viewButNoEdit = fields.map((e) => e.toString().trim()).toList();
               } else if (fields is String) {
@@ -258,12 +271,18 @@ class _HomeScreenState extends State<HomeScreen> {
           }
         }
       } else {
-        viewButNoEdit = _currentViewButNoEdit.split(',').map((e) => e.trim()).toList();
+        viewButNoEdit = _currentViewButNoEdit
+            .split(',')
+            .map((e) => e.trim())
+            .toList();
       }
     } catch (e) {
-      viewButNoEdit = _currentViewButNoEdit.split(',').map((e) => e.trim()).toList();
+      viewButNoEdit = _currentViewButNoEdit
+          .split(',')
+          .map((e) => e.trim())
+          .toList();
     }
-    
+
     _viewButNoEditColumns = viewButNoEdit.where((e) => e.isNotEmpty).toList();
 
     // Ensure all View_But_NE columns are also present in the main _permittedColumns
@@ -277,6 +296,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _pollingTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -288,11 +308,11 @@ class _HomeScreenState extends State<HomeScreen> {
     return _getSheetToFetchFallback();
   }
 
-  Future<void> _fetchSheetData() async {
-    if (mounted && _dataList.isEmpty) {
+  Future<void> _fetchSheetData({bool isPolling = false}) async {
+    if (mounted && _dataList.isEmpty && !isPolling) {
       setState(() => _isLoading = true);
     }
-    
+
     // Force re-parsing of permissions here so any hot-reloads instantly pick up the exact JSON order
     _parsePermissions();
 
@@ -333,7 +353,7 @@ class _HomeScreenState extends State<HomeScreen> {
             final newPermsStr = newPerms.toString().trim();
             final newAccessStr = newAccess.toString().trim();
             final newViewButNeStr = newViewButNe.toString().trim();
-            
+
             final currentPermsStr = _currentPermissions.trim();
             final currentAccessStr = _currentAccessPermissions.trim();
             final currentViewButNeStr = _currentViewButNoEdit.trim();
@@ -373,12 +393,15 @@ class _HomeScreenState extends State<HomeScreen> {
             _dataList = parsedData.where((item) {
               // Ignore rows that are just repeated headers or empty title rows
               final actualDateKey = item.keys.firstWhere(
-                  (k) => k.toLowerCase().trim() == 'date', orElse: () => '');
+                (k) => k.toLowerCase().trim() == 'date',
+                orElse: () => '',
+              );
               final dateVal = actualDateKey.isNotEmpty
                   ? (item[actualDateKey]?.toString().toLowerCase().trim() ?? '')
                   : '';
-              if (dateVal == 'date' || dateVal == 'iv no' || dateVal.isEmpty)
+              if (dateVal == 'date' || dateVal == 'iv no' || dateVal.isEmpty) {
                 return false;
+              }
 
               bool isDataRow = false;
               for (var entry in item.entries) {
@@ -395,7 +418,7 @@ class _HomeScreenState extends State<HomeScreen> {
               return isDataRow;
             }).toList();
             _isLoading = false;
-            
+
             // The _permittedColumns now retains the order from the permissions JSON.
           });
         }
@@ -657,8 +680,14 @@ class _HomeScreenState extends State<HomeScreen> {
                           final col = editColumns[index];
                           final isDate = col.toLowerCase() == 'date';
                           final sheetLower = _getSheetToFetch().toLowerCase();
-                          final isTimeColumn = (sheetLower.contains('boiler') || sheetLower.contains('l&t water') || sheetLower.contains('l & t water') || sheetLower.contains('l&t_water')) &&
-                              (col.toLowerCase() == 'in time' || col.toLowerCase() == 'clock time' || col.toLowerCase() == 'close time');
+                          final isTimeColumn =
+                              (sheetLower.contains('boiler') ||
+                                  sheetLower.contains('l&t water') ||
+                                  sheetLower.contains('l & t water') ||
+                                  sheetLower.contains('l&t_water')) &&
+                              (col.toLowerCase() == 'in time' ||
+                                  col.toLowerCase() == 'clock time' ||
+                                  col.toLowerCase() == 'close time');
                           final isBagWt =
                               col.toLowerCase().replaceAll(
                                 RegExp(r'[^a-z0-9]'),
@@ -711,7 +740,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           }
 
                           // View_But_NE Logic
-                          bool isViewButNE = _viewButNoEditColumns.any((v) => v.toLowerCase() == col.toLowerCase());
+                          bool isViewButNE = _viewButNoEditColumns.any(
+                            (v) => v.toLowerCase() == col.toLowerCase(),
+                          );
                           if (isViewButNE) {
                             isCellLocked = true;
                           }
@@ -931,7 +962,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                   isInputFeed ||
                                   isOutputGrade,
                               onChanged: (val) {
-                                _liveEvaluateFormulas(controllers, setSheetState);
+                                _liveEvaluateFormulas(
+                                  controllers,
+                                  setSheetState,
+                                );
                               },
                               style: const TextStyle(
                                 fontSize: 16,
@@ -986,19 +1020,22 @@ class _HomeScreenState extends State<HomeScreen> {
                                         ),
                                       )
                                     : (isTimeColumn
-                                        ? Container(
-                                            margin: const EdgeInsets.all(8),
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFF667EEA).withOpacity(0.1),
-                                              borderRadius: BorderRadius.circular(10),
-                                            ),
-                                            child: const Icon(
-                                              Icons.access_time_rounded,
-                                              color: Color(0xFF667EEA),
-                                              size: 20,
-                                            ),
-                                          )
-                                        : null),
+                                          ? Container(
+                                              margin: const EdgeInsets.all(8),
+                                              decoration: BoxDecoration(
+                                                color: const Color(
+                                                  0xFF667EEA,
+                                                ).withOpacity(0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                              ),
+                                              child: const Icon(
+                                                Icons.access_time_rounded,
+                                                color: Color(0xFF667EEA),
+                                                size: 20,
+                                              ),
+                                            )
+                                          : null),
                                 floatingLabelBehavior:
                                     FloatingLabelBehavior.auto,
                                 contentPadding: const EdgeInsets.symmetric(
@@ -1493,8 +1530,10 @@ class _HomeScreenState extends State<HomeScreen> {
         if (parts.length >= 2) {
           int hour = int.parse(parts[0]);
           int min = int.parse(parts[1]);
-          if (controller.text.toLowerCase().contains('pm') && hour < 12) hour += 12;
-          if (controller.text.toLowerCase().contains('am') && hour == 12) hour = 0;
+          if (controller.text.toLowerCase().contains('pm') && hour < 12)
+            hour += 12;
+          if (controller.text.toLowerCase().contains('am') && hour == 12)
+            hour = 0;
           initialTime = TimeOfDay(hour: hour, minute: min);
         }
       }
@@ -1536,18 +1575,27 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ─── LIVE FORMULA EVALUATOR ─────────────────────────────────────────────────
-  void _liveEvaluateFormulas(Map<String, TextEditingController> controllers, StateSetter setSheetState) {
+  void _liveEvaluateFormulas(
+    Map<String, TextEditingController> controllers,
+    StateSetter setSheetState,
+  ) {
     bool hasChanges = false;
-    
+
     // Example: Total Consumption = End Reading - Start Reading
     if (controllers.containsKey('Total Consumption')) {
-      final endKey = controllers.keys.firstWhere((k) => k.toLowerCase() == 'end reading', orElse: () => '');
-      final startKey = controllers.keys.firstWhere((k) => k.toLowerCase() == 'start reading', orElse: () => '');
-      
+      final endKey = controllers.keys.firstWhere(
+        (k) => k.toLowerCase() == 'end reading',
+        orElse: () => '',
+      );
+      final startKey = controllers.keys.firstWhere(
+        (k) => k.toLowerCase() == 'start reading',
+        orElse: () => '',
+      );
+
       if (endKey.isNotEmpty && startKey.isNotEmpty) {
         final endVal = double.tryParse(controllers[endKey]!.text);
         final startVal = double.tryParse(controllers[startKey]!.text);
-        
+
         if (endVal != null && startVal != null) {
           final newValue = (endVal - startVal).toStringAsFixed(2);
           if (controllers['Total Consumption']!.text != newValue) {
@@ -1557,10 +1605,10 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
     }
-    
+
     // You can add more specific formula logic here for other columns as needed.
     // e.g. if (controllers.containsKey('Profit')) { ... }
-    
+
     if (hasChanges) {
       setSheetState(() {});
     }
@@ -1686,70 +1734,229 @@ class _HomeScreenState extends State<HomeScreen> {
                     Expanded(
                       child: ListView(
                         padding: const EdgeInsets.all(16),
-                        children: addColumns.map((col) {
-                          final isDate = col.toLowerCase() == 'date';
-                          final sheetLower = _getSheetToFetch().toLowerCase();
-                          final isTimeColumn = (sheetLower.contains('boiler') || sheetLower.contains('l&t water') || sheetLower.contains('l & t water') || sheetLower.contains('l&t_water')) &&
-                              (col.toLowerCase() == 'in time' || col.toLowerCase() == 'clock time' || col.toLowerCase() == 'close time');
-                          final isKilnSheet =
-                              _getSheetToFetch().toLowerCase().contains(
-                                'kiln',
-                              ) ||
-                              widget.role.toLowerCase() == 'kiln';
-                          final isInputFeed =
-                              isKilnSheet &&
-                              col.toLowerCase().replaceAll(' ', '') ==
-                                  'inputfeedgrade';
-                          final isOutputGrade =
-                              isKilnSheet &&
-                              col.toLowerCase().replaceAll(' ', '') ==
-                                  'outputgrade';
-                          final isParty =
-                              col.toLowerCase() == 'party' &&
-                              _getSheetToFetch().toLowerCase() == 'carboninput';
+                        children: [
+                          ...(() {
+                            Widget buildInputField(String col) {
+                              final isDate = col.toLowerCase() == 'date';
+                              final sheetLower = _getSheetToFetch()
+                                  .toLowerCase();
+                              final isTimeColumn =
+                                  (sheetLower.contains('boiler') ||
+                                      sheetLower.contains('l&t water') ||
+                                      sheetLower.contains('l & t water') ||
+                                      sheetLower.contains('l&t_water')) &&
+                                  (col.toLowerCase() == 'in time' ||
+                                      col.toLowerCase() == 'clock time' ||
+                                      col.toLowerCase() == 'close time');
+                              final isKilnSheet =
+                                  _getSheetToFetch().toLowerCase().contains(
+                                    'kiln',
+                                  ) ||
+                                  widget.role.toLowerCase() == 'kiln';
+                              final isInputFeed =
+                                  isKilnSheet &&
+                                  col.toLowerCase().replaceAll(' ', '') ==
+                                      'inputfeedgrade';
+                              final isOutputGrade =
+                                  isKilnSheet &&
+                                  col.toLowerCase().replaceAll(' ', '') ==
+                                      'outputgrade';
+                              final isParty =
+                                  col.toLowerCase() == 'party' &&
+                                  _getSheetToFetch().toLowerCase() ==
+                                      'carboninput';
 
-                          Widget inputField;
-                          if (isParty) {
-                            final predefinedOptions = [
-                              'GEE CARBON',
-                              'BAJAJI ENTERPRIES',
-                              'AXIS GLOBAL',
-                            ];
-                            final options = [...predefinedOptions, 'OTHER'];
+                              Widget inputField;
+                              if (isParty) {
+                                final predefinedOptions = [
+                                  'GEE CARBON',
+                                  'BAJAJI ENTERPRIES',
+                                  'AXIS GLOBAL',
+                                ];
+                                final options = [...predefinedOptions, 'OTHER'];
 
-                            String currentVal = controllers[col]!.text
-                                .toUpperCase()
-                                .trim();
-                            bool showTextField =
-                                isOtherMap[col] ??
-                                (currentVal.isNotEmpty &&
-                                    !predefinedOptions.contains(currentVal));
+                                String currentVal = controllers[col]!.text
+                                    .toUpperCase()
+                                    .trim();
+                                bool showTextField =
+                                    isOtherMap[col] ??
+                                    (currentVal.isNotEmpty &&
+                                        !predefinedOptions.contains(
+                                          currentVal,
+                                        ));
 
-                            String? dropdownValue;
-                            if (showTextField) {
-                              dropdownValue = 'OTHER';
-                            } else {
-                              dropdownValue = currentVal.isEmpty
-                                  ? null
-                                  : currentVal;
-                            }
+                                String? dropdownValue;
+                                if (showTextField) {
+                                  dropdownValue = 'OTHER';
+                                } else {
+                                  dropdownValue = currentVal.isEmpty
+                                      ? null
+                                      : currentVal;
+                                }
 
-                            inputField = Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                DropdownButtonFormField<String>(
-                                  initialValue: dropdownValue,
-                                  dropdownColor: Colors.white,
-                                  icon: const Icon(
-                                    Icons.arrow_drop_down_rounded,
-                                    color: Color(0xFF667EEA),
-                                  ),
+                                inputField = Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    DropdownButtonFormField<String>(
+                                      initialValue: dropdownValue,
+                                      dropdownColor: Colors.white,
+                                      icon: const Icon(
+                                        Icons.arrow_drop_down_rounded,
+                                        color: Color(0xFF667EEA),
+                                      ),
+                                      decoration: InputDecoration(
+                                        labelText: col.toUpperCase(),
+                                        labelStyle: const TextStyle(
+                                          color: Colors.grey,
+                                        ),
+                                        filled: true,
+                                        fillColor: Colors.grey.shade50,
+                                        enabledBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          borderSide: BorderSide(
+                                            color: Colors.grey.shade200,
+                                          ),
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          borderSide: const BorderSide(
+                                            color: Color(0xFF667EEA),
+                                          ),
+                                        ),
+                                      ),
+                                      items: options
+                                          .map(
+                                            (e) => DropdownMenuItem(
+                                              value: e,
+                                              child: Text(e),
+                                            ),
+                                          )
+                                          .toList(),
+                                      onChanged: (val) {
+                                        if (val != null) {
+                                          if (val == 'OTHER') {
+                                            isOtherMap[col] = true;
+                                            if (predefinedOptions.contains(
+                                              controllers[col]!.text
+                                                  .toUpperCase()
+                                                  .trim(),
+                                            )) {
+                                              controllers[col]!.text = '';
+                                            }
+                                          } else {
+                                            isOtherMap[col] = false;
+                                            controllers[col]!.text = val;
+                                          }
+                                          setSheetState(() {});
+                                        }
+                                      },
+                                    ),
+                                    if (showTextField) ...[
+                                      const SizedBox(height: 12),
+                                      TextField(
+                                            controller: controllers[col],
+                                            decoration: InputDecoration(
+                                              labelText: 'ENTER OTHER PARTY',
+                                              labelStyle: const TextStyle(
+                                                color: Colors.grey,
+                                              ),
+                                              filled: true,
+                                              fillColor: Colors.grey.shade50,
+                                              enabledBorder: OutlineInputBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                                borderSide: BorderSide(
+                                                  color: Colors.grey.shade200,
+                                                ),
+                                              ),
+                                              focusedBorder: OutlineInputBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                                borderSide: const BorderSide(
+                                                  color: Color(0xFF667EEA),
+                                                ),
+                                              ),
+                                            ),
+                                          )
+                                          .animate()
+                                          .fadeIn(duration: 300.ms)
+                                          .slideY(
+                                            begin: -0.1,
+                                            curve: Curves.easeOutQuart,
+                                          ),
+                                    ],
+                                  ],
+                                );
+                              } else {
+                                bool isViewButNE = _viewButNoEditColumns.any(
+                                  (v) => v.toLowerCase() == col.toLowerCase(),
+                                );
+
+                                inputField = TextField(
+                                  controller: controllers[col],
+                                  readOnly:
+                                      isDate ||
+                                      isTimeColumn ||
+                                      isInputFeed ||
+                                      isOutputGrade ||
+                                      isViewButNE,
+                                  onChanged: (val) {
+                                    _liveEvaluateFormulas(
+                                      controllers,
+                                      setSheetState,
+                                    );
+                                  },
+                                  onTap: () {
+                                    if (isViewButNE) {
+                                      _showOverlayToast(
+                                        context,
+                                        'You cannot edit $col directly.',
+                                      );
+                                    } else if (isInputFeed || isOutputGrade) {
+                                      _showOverlayToast(
+                                        context,
+                                        'You cannot edit $col in Kiln data.',
+                                      );
+                                    } else if (isDate) {
+                                      if (_role.toLowerCase() != 'admin') {
+                                        _showOverlayToast(
+                                          context,
+                                          'Only Admins can change the Date.',
+                                        );
+                                      } else {
+                                        _showDatePicker(
+                                          context,
+                                          controllers[col]!,
+                                        );
+                                      }
+                                    } else if (isTimeColumn) {
+                                      _showTimePicker(
+                                        context,
+                                        controllers[col]!,
+                                      );
+                                    }
+                                  },
                                   decoration: InputDecoration(
                                     labelText: col.toUpperCase(),
                                     labelStyle: const TextStyle(
                                       color: Colors.grey,
                                     ),
+                                    suffixIcon: isDate
+                                        ? const Icon(
+                                            Icons.calendar_today_outlined,
+                                            color: Color(0xFF667EEA),
+                                          )
+                                        : (isTimeColumn
+                                              ? const Icon(
+                                                  Icons.access_time_rounded,
+                                                  color: Color(0xFF667EEA),
+                                                )
+                                              : null),
                                     filled: true,
                                     fillColor: Colors.grey.shade50,
                                     enabledBorder: OutlineInputBorder(
@@ -1765,141 +1972,79 @@ class _HomeScreenState extends State<HomeScreen> {
                                       ),
                                     ),
                                   ),
-                                  items: options
-                                      .map(
-                                        (e) => DropdownMenuItem(
-                                          value: e,
-                                          child: Text(e),
-                                        ),
-                                      )
-                                      .toList(),
-                                  onChanged: (val) {
-                                    if (val != null) {
-                                      if (val == 'OTHER') {
-                                        isOtherMap[col] = true;
-                                        if (predefinedOptions.contains(
-                                          controllers[col]!.text
-                                              .toUpperCase()
-                                              .trim(),
-                                        )) {
-                                          controllers[col]!.text = '';
-                                        }
-                                      } else {
-                                        isOtherMap[col] = false;
-                                        controllers[col]!.text = val;
-                                      }
-                                      setSheetState(() {});
-                                    }
-                                  },
-                                ),
-                                if (showTextField) ...[
-                                  const SizedBox(height: 12),
-                                  TextField(
-                                        controller: controllers[col],
-                                        decoration: InputDecoration(
-                                          labelText: 'ENTER OTHER PARTY',
-                                          labelStyle: const TextStyle(
-                                            color: Colors.grey,
-                                          ),
-                                          filled: true,
-                                          fillColor: Colors.grey.shade50,
-                                          enabledBorder: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                            borderSide: BorderSide(
-                                              color: Colors.grey.shade200,
-                                            ),
-                                          ),
-                                          focusedBorder: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                            borderSide: const BorderSide(
-                                              color: Color(0xFF667EEA),
-                                            ),
-                                          ),
-                                        ),
-                                      )
-                                      .animate()
-                                      .fadeIn(duration: 300.ms)
-                                      .slideY(
-                                        begin: -0.1,
-                                        curve: Curves.easeOutQuart,
-                                      ),
-                                ],
-                              ],
-                            );
-                          } else {
-                            bool isViewButNE = _viewButNoEditColumns.any((v) => v.toLowerCase() == col.toLowerCase());
+                                );
+                              }
 
-                            inputField = TextField(
-                              controller: controllers[col],
-                              readOnly: isDate || isTimeColumn || isInputFeed || isOutputGrade || isViewButNE,
-                              onChanged: (val) {
-                                _liveEvaluateFormulas(controllers, setSheetState);
-                              },
-                              onTap: () {
-                                if (isViewButNE) {
-                                  _showOverlayToast(
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 16),
+                                child: inputField,
+                              );
+                            }
+
+                            final primaryKeywords = [
+                              'date',
+                              'time',
+                              'name',
+                              'title',
+                              'category',
+                              'stock',
+                              'department',
+                              'party',
+                              'status',
+                            ];
+                            final primaryColumns = addColumns
+                                .where(
+                                  (c) => primaryKeywords.any(
+                                    (k) => c.toLowerCase().contains(k),
+                                  ),
+                                )
+                                .toList();
+                            final advancedColumns = addColumns
+                                .where(
+                                  (c) => !primaryKeywords.any(
+                                    (k) => c.toLowerCase().contains(k),
+                                  ),
+                                )
+                                .toList();
+
+                            // If there are very few columns, just show them all
+                            if (addColumns.length <= 4) {
+                              return addColumns.map(buildInputField).toList();
+                            }
+
+                            final children = <Widget>[];
+                            children.addAll(
+                              primaryColumns.map(buildInputField),
+                            );
+
+                            if (advancedColumns.isNotEmpty) {
+                              children.add(
+                                Theme(
+                                  data: Theme.of(
                                     context,
-                                    'You cannot edit $col directly.',
-                                  );
-                                } else if (isInputFeed || isOutputGrade) {
-                                  _showOverlayToast(
-                                    context,
-                                    'You cannot edit $col in Kiln data.',
-                                  );
-                                } else if (isDate) {
-                                  if (_role.toLowerCase() != 'admin') {
-                                    _showOverlayToast(
-                                      context,
-                                      'Only Admins can change the Date.',
-                                    );
-                                  } else {
-                                    _showDatePicker(context, controllers[col]!);
-                                  }
-                                } else if (isTimeColumn) {
-                                  _showTimePicker(context, controllers[col]!);
-                                }
-                              },
-                              decoration: InputDecoration(
-                                labelText: col.toUpperCase(),
-                                labelStyle: const TextStyle(color: Colors.grey),
-                                suffixIcon: isDate
-                                    ? const Icon(
-                                        Icons.calendar_today_outlined,
+                                  ).copyWith(dividerColor: Colors.transparent),
+                                  child: ExpansionTile(
+                                    initiallyExpanded: false,
+                                    iconColor: const Color(0xFF667EEA),
+                                    collapsedIconColor: Colors.grey.shade600,
+                                    title: const Text(
+                                      'Advanced Details',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
                                         color: Color(0xFF667EEA),
-                                      )
-                                    : (isTimeColumn
-                                        ? const Icon(
-                                            Icons.access_time_rounded,
-                                            color: Color(0xFF667EEA),
-                                          )
-                                        : null),
-                                filled: true,
-                                fillColor: Colors.grey.shade50,
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(
-                                    color: Colors.grey.shade200,
+                                      ),
+                                    ),
+                                    children: advancedColumns
+                                        .map(buildInputField)
+                                        .toList(),
                                   ),
                                 ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(
-                                    color: Color(0xFF667EEA),
-                                  ),
-                                ),
-                              ),
-                            );
-                          }
+                              );
+                            }
 
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 16),
-                            child: inputField,
-                          );
-                        }).toList(),
+                            return children;
+                          })(),
+                        ],
                       ),
                     ),
                   ],
@@ -1930,7 +2075,7 @@ class _HomeScreenState extends State<HomeScreen> {
       alignedRecord[actualKey] = val;
 
       // Auto-lock fields explicitly for new records!
-      if (val != null && val.toString().trim().isNotEmpty) {
+      if (val.toString().trim().isNotEmpty) {
         final lockColNames = _getLockColumnNames(actualKey);
         if (lockColNames.isNotEmpty) {
           String targetLockKey = lockColNames.first;
@@ -2176,29 +2321,75 @@ class _HomeScreenState extends State<HomeScreen> {
       titleColName = actualKey;
     }
 
-    final dateKey = item.keys.firstWhere(
+    String dateKey = item.keys.firstWhere(
       (k) => k.toLowerCase().trim() == 'date',
       orElse: () => '',
     );
+    
+    bool extractTimeOnly = false;
+    if (titleKeyLower == 'date' || (dateKey.isNotEmpty && titleColName.toLowerCase().trim() == dateKey.toLowerCase().trim())) {
+       // Since the title already shows the DATE, let's use the right pill to show the TIME part of that date string!
+       extractTimeOnly = true;
+    }
+    
     String dateVal = '';
-    String dateKeyLower = 'date';
+    String dateKeyLower = dateKey.toLowerCase().trim();
     if (dateKey.isNotEmpty) {
       final rawDate = (item[dateKey] ?? '').trim();
       if (rawDate != '-' && rawDate.isNotEmpty) {
-        try {
-          DateTime dt = _parseDateString(rawDate);
-          String d = dt.day.toString().padLeft(2, '0');
-          String m = dt.month.toString().padLeft(2, '0');
-          String y = (dt.year % 100).toString().padLeft(2, '0');
-          dateVal = '$d/$m/$y';
-        } catch (e) {
+        if (extractTimeOnly) {
+           dateKey = 'TIME'; // Rename the label to TIME
+           dateKeyLower = 'time';
+           if (rawDate.contains(' ')) {
+              final parts = rawDate.split(' ');
+              if (parts.length > 1) {
+                 dateVal = parts.skip(1).join(' '); // Extract time
+              }
+           }
+           // If there is no space, there is no time to show, so dateVal remains '' and the pill hides.
+        } else if (dateKeyLower == 'date') {
+          try {
+            DateTime dt = _parseDateString(rawDate);
+            String d = dt.day.toString().padLeft(2, '0');
+            String m = dt.month.toString().padLeft(2, '0');
+            String y = (dt.year % 100).toString().padLeft(2, '0');
+            dateVal = '$d/$m/$y';
+            
+            // Fix bug where parseDateString silently returns DateTime.now() on failure
+            if (dt.day == DateTime.now().day && dt.month == DateTime.now().month && dt.year == DateTime.now().year) {
+               if (!rawDate.contains(d) && !rawDate.contains(dt.day.toString())) {
+                   dateVal = rawDate; 
+               }
+            }
+          } catch (e) {
+            dateVal = rawDate;
+          }
+        } else {
           dateVal = rawDate;
         }
       }
     }
 
     // Preserve exact order from permissions without filtering out title/date
-    final displayFields = _permittedColumns.toList();
+    List<String> displayFields = _permittedColumns.toList();
+
+    if (_selectedSheet.toUpperCase().contains('STORE') &&
+        _selectedSheet.toUpperCase().contains('STOCK')) {
+      final allowedInventoryColumns = [
+        'DEPARTMENT',
+        'CATEGORY',
+        'DESCRIPTION',
+        'SPECIFICATION',
+        'UOM',
+        'PERIOD',
+        'STOCK',
+      ];
+      displayFields = displayFields
+          .where(
+            (col) => allowedInventoryColumns.contains(col.toUpperCase().trim()),
+          )
+          .toList();
+    }
 
     // Create a dynamic top margin to force a zigzag staggered effect
     final double topMargin = (index % 2 == 1) ? 30.0 : 0.0;
@@ -2207,47 +2398,23 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: EdgeInsets.only(bottom: 16, top: topMargin),
       child: Stack(
         children: [
-          // Subtle glow behind the card
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF667EEA).withValues(alpha: 0.15),
-                    blurRadius: 15,
-                    spreadRadius: 0,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-            ),
-          ),
           // Main Card
           ClipRRect(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(12),
             child: SizedBox(
               child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.65),
-                  borderRadius: BorderRadius.circular(20),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.9),
-                    width: 1.2,
-                  ),
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.white.withValues(alpha: 0.8),
-                      Colors.white.withValues(alpha: 0.4),
-                    ],
+                    color: Colors.grey.withValues(alpha: 0.2),
+                    width: 1.0,
                   ),
                 ),
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(12),
                     highlightColor: const Color(
                       0xFF667EEA,
                     ).withValues(alpha: 0.05),
@@ -2289,7 +2456,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       );
                     },
                     child: Padding(
-                      padding: const EdgeInsets.all(14.0),
+                      padding: const EdgeInsets.all(12.0),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -2350,14 +2517,14 @@ class _HomeScreenState extends State<HomeScreen> {
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      const Icon(
-                                        Icons.calendar_month_rounded,
+                                      Icon(
+                                        dateKeyLower == 'time' ? Icons.access_time_rounded : Icons.calendar_month_rounded,
                                         size: 13,
-                                        color: Color(0xFF667EEA),
+                                        color: const Color(0xFF667EEA),
                                       ),
                                       const SizedBox(width: 5),
                                       Text(
-                                        '${(dateKey.isNotEmpty ? dateKey : 'DATE').toUpperCase()}: $dateVal',
+                                        '${dateKey.toUpperCase()}: $dateVal',
                                         style: const TextStyle(
                                           fontSize: 12,
                                           fontWeight: FontWeight.w900,
@@ -2371,120 +2538,442 @@ class _HomeScreenState extends State<HomeScreen> {
                             ],
                           ),
                           const SizedBox(height: 12),
-                          Container(
-                            height: 1,
-                            color: Colors.grey.withValues(alpha: 0.15),
-                          ),
-                          const SizedBox(height: 12),
 
                           // Properties layout
-                          Wrap(
-                            spacing: 12,
-                            runSpacing: 12,
-                            children: displayFields
-                                .where((col) {
-                                  final actualKey = item.keys.firstWhere(
-                                    (k) =>
-                                        k.toLowerCase().trim() ==
-                                        col.toLowerCase().trim(),
-                                    orElse: () => col,
-                                  );
-                                  final rawVal = (item[actualKey] ?? '').trim();
-                                  return rawVal.isNotEmpty && rawVal != '-';
-                                })
-                                .map((col) {
-                                  final actualKey = item.keys.firstWhere(
-                                    (k) =>
-                                        k.toLowerCase().trim() ==
-                                        col.toLowerCase().trim(),
-                                    orElse: () => col,
-                                  );
-                                  final val = (item[actualKey] ?? '').trim();
+                          (() {
+                            Widget buildDataField(String col) {
+                              final actualKey = item.keys.firstWhere(
+                                (k) =>
+                                    k.toLowerCase().trim() ==
+                                    col.toLowerCase().trim(),
+                                orElse: () => col,
+                              );
+                              String displayCol = col;
+                              String val = (item[actualKey] ?? '').trim();
 
-                                  return SizedBox(
-                                    width: double.infinity,
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          col.toUpperCase(),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontSize: 9,
-                                            color: Colors.grey.shade500,
-                                            fontWeight: FontWeight.bold,
-                                            letterSpacing: 0.5,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          val,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w700,
-                                            color: Color(0xFF2D3748),
-                                          ),
-                                        ),
-                                      ],
+                              if (col.toLowerCase().trim() == 'date') {
+                                displayCol = 'TIME';
+                                if (val.contains(' ')) {
+                                  final parts = val.split(' ');
+                                  if (parts.length > 1) {
+                                    val = parts.skip(1).join(' ');
+                                  }
+                                }
+                              }
+
+                              final isDesc = col.toLowerCase().contains(
+                                'description',
+                              );
+                              final isStock = col.toLowerCase().contains(
+                                'stock',
+                              );
+                              final isHighlight = isDesc || isStock;
+
+                              return Container(
+                                width: isDesc
+                                    ? double.infinity
+                                    : (MediaQuery.of(context).size.width - 70) /
+                                          2,
+                                padding: EdgeInsets.all(
+                                  isHighlight ? 8.0 : 4.0,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isHighlight
+                                      ? const Color(
+                                          0xFF667EEA,
+                                        ).withValues(alpha: 0.08)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: isHighlight
+                                      ? Border.all(
+                                          color: const Color(
+                                            0xFF667EEA,
+                                          ).withValues(alpha: 0.3),
+                                          width: 1,
+                                        )
+                                      : null,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      displayCol.toUpperCase(),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        color: isHighlight
+                                            ? const Color(0xFF667EEA)
+                                            : Colors.grey.shade500,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 0.5,
+                                      ),
                                     ),
-                                  );
-                                })
-                                .toList(),
-                          ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      val,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: isHighlight
+                                            ? FontWeight.w900
+                                            : FontWeight.w700,
+                                        color: isHighlight
+                                            ? const Color(0xFF667EEA)
+                                            : const Color(0xFF2D3748),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }
+
+                            final validFields = displayFields.where((col) {
+                              final actualKey = item.keys.firstWhere(
+                                (k) =>
+                                    k.toLowerCase().trim() ==
+                                    col.toLowerCase().trim(),
+                                orElse: () => col,
+                              );
+                              final rawVal = (item[actualKey] ?? '').trim();
+                              return rawVal.isNotEmpty && rawVal != '-';
+                            }).toList();
+
+                            return Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: validFields
+                                  .map(buildDataField)
+                                  .toList(),
+                            );
+                          })(),
 
                           const SizedBox(height: 12),
-                          Container(
-                            height: 1,
-                            color: Colors.grey.withValues(alpha: 0.15),
-                          ),
-                          const SizedBox(height: 8),
 
                           // Lower actions bar
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Row(
-                                children: [
-                                  if (_canWrite) ...[
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.edit_rounded,
-                                        color: Color(0xFF3B82F6),
+                              // Edit and delete icons are hidden as requested.
+                              ...(() {
+                                String itemTitle = 'Unknown Item';
+                                String itemDesc = 'Unknown Description';
+                                String itemCategory = '';
+                                String itemStock = '1';
+
+                                for (String key in item.keys) {
+                                  final kLower = key.toLowerCase();
+                                  if (kLower.contains('description') ||
+                                      kLower.contains('name') ||
+                                      kLower.contains('title') ||
+                                      kLower.contains('party') ||
+                                      kLower.contains('category')) {
+                                    if (item[key]?.isNotEmpty == true &&
+                                        itemTitle == 'Unknown Item') {
+                                      itemTitle = item[key]!;
+                                    }
+                                  }
+                                  if (kLower.contains('description') &&
+                                      item[key]?.isNotEmpty == true) {
+                                    itemDesc = item[key]!;
+                                  }
+                                  if (kLower.contains('category') &&
+                                      item[key]?.isNotEmpty == true) {
+                                    itemCategory = item[key]!;
+                                  }
+                                }
+                                if (itemDesc == 'Unknown Description') {
+                                  itemDesc = itemTitle;
+                                }
+
+                                for (String key in item.keys) {
+                                  final kLower = key.toLowerCase().trim();
+                                  if ((kLower.contains('stock') ||
+                                          kLower.contains('qty') ||
+                                          kLower.contains('quantity')) &&
+                                      !kLower.contains('min')) {
+                                    if (item[key]?.isNotEmpty == true) {
+                                      itemStock = item[key]!;
+                                      break;
+                                    }
+                                  }
+                                }
+
+                                String itemMinStock = '0';
+                                for (String key in item.keys) {
+                                  final kLower = key.toLowerCase().trim();
+                                  if (kLower.contains('min') &&
+                                      kLower.contains('stock')) {
+                                    if (item[key]?.isNotEmpty == true) {
+                                      itemMinStock = item[key]!;
+                                      break;
+                                    }
+                                  }
+                                }
+
+                                final cartItemIndex = _cartItems.indexWhere(
+                                  (c) => c['item'] == itemTitle,
+                                );
+                                final isInCart = cartItemIndex != -1;
+                                final currentQty = isInCart
+                                    ? int.tryParse(
+                                            _cartItems[cartItemIndex]['qty']
+                                                .toString(),
+                                          ) ??
+                                          1
+                                    : 0;
+
+                                final maxStockStr = itemStock.replaceAll(
+                                  RegExp(r'[^0-9.]'),
+                                  '',
+                                );
+                                final maxStock =
+                                    double.tryParse(maxStockStr)?.toInt() ?? 0;
+                                final minStockStr = itemMinStock.replaceAll(
+                                  RegExp(r'[^0-9.]'),
+                                  '',
+                                );
+                                final minStock =
+                                    double.tryParse(minStockStr)?.toInt() ?? 0;
+
+                                final bool isBelowMin = minStock > maxStock;
+                                final bool isOutOfStock = maxStock < 1;
+                                final bool isAddToCartDisabled =
+                                    isBelowMin || isOutOfStock;
+                                final String disabledMessage = isBelowMin
+                                    ? 'Below Min Stock'
+                                    : 'Out of Stock';
+
+                                if (isInCart) {
+                                  return [
+                                    // Removed SizedBox so button takes full width
+                                    Expanded(
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: Colors.amber.withValues(
+                                            alpha: 0.15,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            IconButton(
+                                              icon: const Icon(
+                                                Icons.remove,
+                                                size: 16,
+                                              ),
+                                              color: Colors.amber.shade800,
+                                              padding: EdgeInsets.zero,
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                              constraints: const BoxConstraints(
+                                                minWidth: 32,
+                                                minHeight: 32,
+                                              ),
+                                              onPressed: () {
+                                                setState(() {
+                                                  if (currentQty > 1) {
+                                                    _cartItems[cartItemIndex]['qty'] =
+                                                        (currentQty - 1)
+                                                            .toString();
+                                                  } else {
+                                                    _cartItems.removeAt(
+                                                      cartItemIndex,
+                                                    );
+                                                  }
+                                                });
+                                              },
+                                            ),
+                                            Text(
+                                              '$currentQty',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.amber.shade800,
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                            Opacity(
+                                              opacity:
+                                                  ((currentQty + 1) >
+                                                          maxStock ||
+                                                      isBelowMin)
+                                                  ? 0.3
+                                                  : 1.0,
+                                              child: IconButton(
+                                                icon: const Icon(
+                                                  Icons.add,
+                                                  size: 16,
+                                                ),
+                                                color: Colors.amber.shade800,
+                                                padding: EdgeInsets.zero,
+                                                visualDensity:
+                                                    VisualDensity.compact,
+                                                constraints:
+                                                    const BoxConstraints(
+                                                      minWidth: 32,
+                                                      minHeight: 32,
+                                                    ),
+                                                onPressed: () {
+                                                  if (isBelowMin) {
+                                                    ScaffoldMessenger.of(
+                                                      context,
+                                                    ).showSnackBar(
+                                                      const SnackBar(
+                                                        content: Text(
+                                                          'Cannot add more. Stock is below Minimum Stock!',
+                                                        ),
+                                                        backgroundColor:
+                                                            Colors.redAccent,
+                                                        duration: Duration(
+                                                          seconds: 2,
+                                                        ),
+                                                      ),
+                                                    );
+                                                    return;
+                                                  }
+
+                                                  if ((currentQty + 1) >
+                                                      maxStock) {
+                                                    ScaffoldMessenger.of(
+                                                      context,
+                                                    ).showSnackBar(
+                                                      SnackBar(
+                                                        content: Text(
+                                                          'Cannot add more. Only $maxStock in stock!',
+                                                        ),
+                                                        backgroundColor:
+                                                            Colors.redAccent,
+                                                        duration:
+                                                            const Duration(
+                                                              seconds: 2,
+                                                            ),
+                                                      ),
+                                                    );
+                                                    return;
+                                                  }
+
+                                                  setState(() {
+                                                    _cartItems[cartItemIndex]['qty'] =
+                                                        (currentQty + 1)
+                                                            .toString();
+                                                  });
+                                                },
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
-                                      iconSize: 18,
-                                      padding: EdgeInsets.zero,
-                                      visualDensity: VisualDensity.compact,
-                                      constraints: const BoxConstraints(),
-                                      onPressed: () => _showEditSheet(item),
                                     ),
-                                    const SizedBox(width: 12),
-                                  ],
-                                  if (_canDelete) ...[
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.delete_outline_rounded,
-                                        color: Color(0xFFEF4444),
+                                  ];
+                                }
+
+                                return [
+                                  // Removed SizedBox so button takes full width
+                                  Expanded(
+                                    child: Opacity(
+                                      opacity: isAddToCartDisabled ? 0.4 : 1.0,
+                                      child: ElevatedButton.icon(
+                                        onPressed: () {
+                                          if (isBelowMin) {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'Cannot add to cart. Stock is below Minimum Stock!',
+                                                ),
+                                                backgroundColor:
+                                                    Colors.redAccent,
+                                                duration: Duration(seconds: 2),
+                                              ),
+                                            );
+                                            return;
+                                          }
+
+                                          if (isOutOfStock) {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'Cannot add to cart. Item is out of stock!',
+                                                ),
+                                                backgroundColor:
+                                                    Colors.redAccent,
+                                                duration: Duration(seconds: 2),
+                                              ),
+                                            );
+                                            return;
+                                          }
+
+                                          setState(() {
+                                            _cartItems.add({
+                                              'item': itemTitle,
+                                              'description': itemDesc,
+                                              'category': itemCategory,
+                                              'qty': '1',
+                                              'maxStock': maxStock,
+                                              'minStock': minStock,
+                                              'rawItem': item,
+                                            });
+                                          });
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                'Added "$itemTitle" to Cart!',
+                                              ),
+                                              duration: const Duration(
+                                                seconds: 1,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                        icon: Icon(
+                                          isAddToCartDisabled
+                                              ? Icons.block
+                                              : Icons.add_shopping_cart_rounded,
+                                          size: 16,
+                                        ),
+                                        label: Text(
+                                          isAddToCartDisabled
+                                              ? disabledMessage
+                                              : 'Add to Cart',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: isAddToCartDisabled
+                                              ? Colors.grey.withValues(
+                                                  alpha: 0.15,
+                                                )
+                                              : const Color(0xFF667EEA),
+                                          foregroundColor: isAddToCartDisabled
+                                              ? Colors.grey.shade700
+                                              : Colors.white,
+                                          elevation: 0,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 0,
+                                          ),
+                                          minimumSize: const Size(0, 32),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                          ),
+                                        ),
                                       ),
-                                      iconSize: 18,
-                                      padding: EdgeInsets.zero,
-                                      visualDensity: VisualDensity.compact,
-                                      constraints: const BoxConstraints(),
-                                      onPressed: () => _confirmDelete(item),
                                     ),
-                                  ],
-                                ],
-                              ),
-                              Icon(
-                                Icons.arrow_forward_ios_rounded,
-                                size: 10,
-                                color: const Color(
-                                  0xFF667EEA,
-                                ).withValues(alpha: 0.8),
-                              ),
+                                  ),
+                                ];
+                              })(),
                             ],
                           ),
                         ],
@@ -2650,6 +3139,33 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       extendBody: true, // Allows content to scroll behind the floating nav bar
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          showDialog(
+            context: context,
+            builder: (context) => InventoryCheckoutDialog(
+              cartItems: _cartItems,
+              onClearCart: () {
+                setState(() {
+                  _cartItems.clear();
+                });
+              },
+            ),
+          ).then((result) {
+            if (result == true) {
+              _fetchSheetData();
+            } else {
+              setState(() {});
+            }
+          });
+        },
+        icon: const Icon(Icons.shopping_cart_checkout, color: Colors.white),
+        label: Text(
+          'Issue Items (${_cartItems.length})',
+          style: const TextStyle(color: Colors.white),
+        ),
+        backgroundColor: const Color(0xFF3B82F6),
+      ),
       // ── BODY ──
       body: Stack(
         children: [
@@ -2697,7 +3213,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   // ── RECORDS TAB (index 0) ──
                   : LiquidPullToRefresh(
                       key: const ValueKey('records'),
-                      color: const Color(0xFF667EEA), // The background color of the liquid
+                      color: const Color(
+                        0xFF667EEA,
+                      ), // The background color of the liquid
                       backgroundColor: Colors.white, // The color of the icon
                       onRefresh: _fetchSheetData,
                       animSpeedFactor: 2.0,
@@ -3380,158 +3898,158 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      margin: const EdgeInsets.only(bottom: 24),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(10),
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 24),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
                     ),
-                  ),
-                  const Text(
-                    'Switch Workspace',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF2D3748),
-                      letterSpacing: -0.5,
-                    ),
-                  ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.1),
-                  const SizedBox(height: 8),
-                  Text(
-                        'Select a data sheet to view and manage its records.',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey.shade600,
-                        ),
-                      )
-                      .animate()
-                      .fadeIn(duration: 400.ms, delay: 100.ms)
-                      .slideY(begin: 0.1),
-                  const SizedBox(height: 24),
-                  ..._availableSheets.asMap().entries.map((entry) {
-                    final int idx = entry.key;
-                    final String sheet = entry.value;
-                    final bool isSelected = sheet == _selectedSheet;
-
-                    return Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(20),
-                              onTap: () {
-                                Navigator.pop(ctx);
-                                if (!isSelected) {
-                                  setState(() {
-                                    _selectedSheet = sheet;
-                                    _dataList.clear();
-                                    _isLoading = true;
-                                  });
-                                  _parsePermissions();
-                                  _fetchSheetData();
-                                }
-                              },
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 400),
-                                curve: Curves.easeOutCubic,
-                                padding: const EdgeInsets.all(18),
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? const Color(
-                                          0xFF667EEA,
-                                        ).withValues(alpha: 0.15)
-                                      : Colors.white.withValues(alpha: 0.6),
-                                  borderRadius: BorderRadius.circular(24),
-                                  border: Border.all(
-                                    color: isSelected
-                                        ? const Color(
-                                            0xFF667EEA,
-                                          ).withValues(alpha: 0.5)
-                                        : Colors.white.withValues(alpha: 0.8),
-                                    width: 1.5,
-                                  ),
-                                  boxShadow: isSelected
-                                      ? [
-                                          BoxShadow(
-                                            color: const Color(
-                                              0xFF667EEA,
-                                            ).withValues(alpha: 0.1),
-                                            blurRadius: 15,
-                                            offset: const Offset(0, 5),
-                                          ),
-                                        ]
-                                      : [
-                                          BoxShadow(
-                                            color: Colors.black.withValues(
-                                              alpha: 0.02,
-                                            ),
-                                            blurRadius: 10,
-                                            offset: const Offset(0, 4),
-                                          ),
-                                        ],
-                                ),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(10),
-                                      decoration: BoxDecoration(
-                                        color: isSelected
-                                            ? const Color(0xFF667EEA)
-                                            : Colors.grey.shade50,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: Icon(
-                                        isSelected
-                                            ? Icons.check_rounded
-                                            : Icons.table_chart_outlined,
-                                        color: isSelected
-                                            ? Colors.white
-                                            : Colors.grey.shade400,
-                                        size: 18,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      child: Text(
-                                        sheet,
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: isSelected
-                                              ? FontWeight.w800
-                                              : FontWeight.w600,
-                                          color: isSelected
-                                              ? const Color(0xFF667EEA)
-                                              : const Color(0xFF2D3748),
-                                        ),
-                                      ),
-                                    ),
-                                    if (isSelected)
-                                      const Text(
-                                        'Active',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                          color: Color(0xFF667EEA),
-                                        ),
-                                      ).animate().fadeIn().scale(),
-                                  ],
-                                ),
-                              ),
-                            ),
+                    const Text(
+                      'Switch Workspace',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF2D3748),
+                        letterSpacing: -0.5,
+                      ),
+                    ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.1),
+                    const SizedBox(height: 8),
+                    Text(
+                          'Select a data sheet to view and manage its records.',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey.shade600,
                           ),
                         )
                         .animate()
-                        .fadeIn(duration: 400.ms, delay: (150 + idx * 50).ms)
-                        .slideX(begin: 0.05);
-                  }),
-                  const SizedBox(height: 16),
-                ],
-              ),
+                        .fadeIn(duration: 400.ms, delay: 100.ms)
+                        .slideY(begin: 0.1),
+                    const SizedBox(height: 24),
+                    ..._availableSheets.asMap().entries.map((entry) {
+                      final int idx = entry.key;
+                      final String sheet = entry.value;
+                      final bool isSelected = sheet == _selectedSheet;
+
+                      return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(20),
+                                onTap: () {
+                                  Navigator.pop(ctx);
+                                  if (!isSelected) {
+                                    setState(() {
+                                      _selectedSheet = sheet;
+                                      _dataList.clear();
+                                      _isLoading = true;
+                                    });
+                                    _parsePermissions();
+                                    _fetchSheetData();
+                                  }
+                                },
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 400),
+                                  curve: Curves.easeOutCubic,
+                                  padding: const EdgeInsets.all(18),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? const Color(
+                                            0xFF667EEA,
+                                          ).withValues(alpha: 0.15)
+                                        : Colors.white.withValues(alpha: 0.6),
+                                    borderRadius: BorderRadius.circular(24),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? const Color(
+                                              0xFF667EEA,
+                                            ).withValues(alpha: 0.5)
+                                          : Colors.white.withValues(alpha: 0.8),
+                                      width: 1.5,
+                                    ),
+                                    boxShadow: isSelected
+                                        ? [
+                                            BoxShadow(
+                                              color: const Color(
+                                                0xFF667EEA,
+                                              ).withValues(alpha: 0.1),
+                                              blurRadius: 15,
+                                              offset: const Offset(0, 5),
+                                            ),
+                                          ]
+                                        : [
+                                            BoxShadow(
+                                              color: Colors.black.withValues(
+                                                alpha: 0.02,
+                                              ),
+                                              blurRadius: 10,
+                                              offset: const Offset(0, 4),
+                                            ),
+                                          ],
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(10),
+                                        decoration: BoxDecoration(
+                                          color: isSelected
+                                              ? const Color(0xFF667EEA)
+                                              : Colors.grey.shade50,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Icon(
+                                          isSelected
+                                              ? Icons.check_rounded
+                                              : Icons.table_chart_outlined,
+                                          color: isSelected
+                                              ? Colors.white
+                                              : Colors.grey.shade400,
+                                          size: 18,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Expanded(
+                                        child: Text(
+                                          sheet,
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: isSelected
+                                                ? FontWeight.w800
+                                                : FontWeight.w600,
+                                            color: isSelected
+                                                ? const Color(0xFF667EEA)
+                                                : const Color(0xFF2D3748),
+                                          ),
+                                        ),
+                                      ),
+                                      if (isSelected)
+                                        const Text(
+                                          'Active',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF667EEA),
+                                          ),
+                                        ).animate().fadeIn().scale(),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          )
+                          .animate()
+                          .fadeIn(duration: 400.ms, delay: (150 + idx * 50).ms)
+                          .slideX(begin: 0.05);
+                    }),
+                    const SizedBox(height: 16),
+                  ],
+                ),
               ),
             ),
           ),
