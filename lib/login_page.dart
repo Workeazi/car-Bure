@@ -189,95 +189,7 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  Future<void> _forgotPassword() async {
-    final loginId = _emailController.text.trim();
 
-    if (loginId.isEmpty) {
-      _showErrorDialog(
-        'Input Required',
-        'Please enter your Email or Employee ID to request a password reset.',
-      );
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final data = await GoogleSheetsService.fetchSheet2Data();
-      if (data != null) {
-        bool userFound = false;
-
-        for (final user in data) {
-          final cellEmployeeId = (user['Employee ID'] ?? '').trim();
-          final cellEmail = (user['Email ID'] ?? '').trim();
-
-          if (cellEmployeeId == loginId || cellEmail == loginId) {
-            userFound = true;
-            break;
-          }
-        }
-
-        if (!userFound) {
-          _showErrorDialog(
-            'User Not Found',
-            'No account exists with this Email or Employee ID.',
-          );
-        } else {
-          final updateUrl = Uri.parse('YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL');
-
-          if (updateUrl.toString() == 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL') {
-            _showErrorDialog(
-              'Backend Required',
-              'Please deploy the Google Apps Script and replace the URL in login_page.dart.',
-            );
-            return;
-          }
-
-          final updateResponse = await http.post(
-            updateUrl,
-            body: {'email': loginId, 'action': 'requesting_password_reset'},
-          );
-
-          if (updateResponse.statusCode == 200 ||
-              updateResponse.statusCode == 302) {
-            _showErrorDialog(
-              'Success',
-              'Password reset request sent to the admin',
-            );
-          } else {
-            _showErrorDialog('Error', 'Failed to update the Google Sheet.');
-          }
-        }
-      } else {
-        _showErrorDialog(
-          'Network Error',
-          'Failed to verify email. Could not fetch data from backend.',
-        );
-      }
-    } catch (e) {
-      if (e.toString().contains('SocketException') ||
-          e.toString().contains('Failed host lookup')) {
-        _showErrorDialog(
-          'Connection Error',
-          'No internet connection. Please verify your Wi-Fi or mobile data and try again.',
-        );
-      } else {
-        _showErrorDialog(
-          'Error',
-          'An unexpected error occurred.',
-          e.toString(),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
 
   Widget _buildTextField({
     required TextEditingController controller,
@@ -351,7 +263,10 @@ class _LoginPageState extends State<LoginPage> {
       body: Stack(
         children: [
           // Using the same beautiful animated background from the home screen
-          const AnimatedGradientBackground(),
+          const AnimatedGradientBackground(
+            primaryColor: Color(0xFF667EEA),
+            secondaryColor: Color(0xFF8B5CF6),
+          ),
 
           // Main Content
           SafeArea(
@@ -462,29 +377,7 @@ class _LoginPageState extends State<LoginPage> {
                                   ),
                                   const SizedBox(height: 12),
 
-                                  // Forgot Password
-                                  Align(
-                                    alignment: Alignment.centerRight,
-                                    child: TextButton(
-                                      onPressed: _isLoading
-                                          ? null
-                                          : _forgotPassword,
-                                      style: TextButton.styleFrom(
-                                        padding: EdgeInsets.zero,
-                                        minimumSize: Size.zero,
-                                        tapTargetSize:
-                                            MaterialTapTargetSize.shrinkWrap,
-                                      ),
-                                      child: const Text(
-                                        'Forgot Password?',
-                                        style: TextStyle(
-                                          color: Color(0xFF667EEA),
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 13,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
+
                                   const SizedBox(height: 32),
 
                                   // Login Button

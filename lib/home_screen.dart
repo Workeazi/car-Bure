@@ -38,6 +38,18 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+
+  Color get _appPrimaryColor {
+    return _getSheetToFetch().trim().toUpperCase() == 'STORE _MATERIAL_STOCK _LIST'
+        ? Colors.teal.shade600
+        : const Color(0xFF667EEA);
+  }
+
+  Color get _appSecondaryColor {
+    return _getSheetToFetch().trim().toUpperCase() == 'STORE _MATERIAL_STOCK _LIST'
+        ? Colors.teal.shade300
+        : const Color(0xFF8B5CF6);
+  }
   bool _isLoading = true;
   List<Map<String, String>> _dataList = [];
   final List<Map<String, dynamic>> _cartItems = [];
@@ -138,7 +150,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _fetchSheetData();
 
     // Start background polling to continuously fetch new data
-    _pollingTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+    _pollingTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (mounted && !_isLoading) {
         _fetchSheetData(isPolling: true);
       }
@@ -840,9 +852,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                 DropdownButtonFormField<String>(
                                   initialValue: dropdownValue,
                                   dropdownColor: Colors.white,
-                                  icon: const Icon(
+                                  icon: Icon(
                                     Icons.arrow_drop_down_rounded,
-                                    color: Color(0xFF667EEA),
+                                    color: _appPrimaryColor,
                                   ),
                                   style: const TextStyle(
                                     fontSize: 16,
@@ -869,8 +881,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                     ),
                                     focusedBorder: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(16),
-                                      borderSide: const BorderSide(
-                                        color: Color(0xFF667EEA),
+                                      borderSide: BorderSide(
+                                        color: _appPrimaryColor,
                                         width: 2,
                                       ),
                                     ),
@@ -936,8 +948,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                             borderRadius: BorderRadius.circular(
                                               16,
                                             ),
-                                            borderSide: const BorderSide(
-                                              color: Color(0xFF667EEA),
+                                            borderSide: BorderSide(
+                                              color: _appPrimaryColor,
                                               width: 2,
                                             ),
                                           ),
@@ -1013,9 +1025,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                             10,
                                           ),
                                         ),
-                                        child: const Icon(
+                                        child: Icon(
                                           Icons.calendar_month_rounded,
-                                          color: Color(0xFF667EEA),
+                                          color: _appPrimaryColor,
                                           size: 20,
                                         ),
                                       )
@@ -1029,9 +1041,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                                 borderRadius:
                                                     BorderRadius.circular(10),
                                               ),
-                                              child: const Icon(
+                                              child: Icon(
                                                 Icons.access_time_rounded,
-                                                color: Color(0xFF667EEA),
+                                                color: _appPrimaryColor,
                                                 size: 20,
                                               ),
                                             )
@@ -1048,8 +1060,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(16),
-                                  borderSide: const BorderSide(
-                                    color: Color(0xFF667EEA),
+                                  borderSide: BorderSide(
+                                    color: _appPrimaryColor,
                                     width: 2,
                                   ),
                                 ),
@@ -1104,9 +1116,9 @@ class _HomeScreenState extends State<HomeScreen> {
                               padding: const EdgeInsets.symmetric(vertical: 18),
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(20),
-                                gradient: const LinearGradient(
+                                gradient: LinearGradient(
                                   colors: [
-                                    Color(0xFF667EEA),
+                                    _appPrimaryColor,
                                     Color(0xFF764BA2),
                                   ],
                                   begin: Alignment.topLeft,
@@ -1357,13 +1369,13 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const Divider(height: 1),
             ListTile(
-              leading: const Icon(
+              leading: Icon(
                 Icons.calendar_today,
-                color: Color(0xFF667EEA),
+                color: _appPrimaryColor,
               ),
               title: const Text('Date: Newest First'),
               trailing: (_isSortByDate && _isSortDescending)
-                  ? const Icon(Icons.check, color: Color(0xFF667EEA))
+                  ? Icon(Icons.check, color: _appPrimaryColor)
                   : null,
               onTap: () {
                 setState(() {
@@ -1374,13 +1386,13 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(
+              leading: Icon(
                 Icons.calendar_today,
-                color: Color(0xFF667EEA),
+                color: _appPrimaryColor,
               ),
               title: const Text('Date: Oldest First'),
               trailing: (_isSortByDate && !_isSortDescending)
-                  ? const Icon(Icons.check, color: Color(0xFF667EEA))
+                  ? Icon(Icons.check, color: _appPrimaryColor)
                   : null,
               onTap: () {
                 setState(() {
@@ -1392,13 +1404,13 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const Divider(height: 1),
             ListTile(
-              leading: const Icon(
+              leading: Icon(
                 Icons.arrow_downward,
-                color: Color(0xFF667EEA),
+                color: _appPrimaryColor,
               ),
               title: const Text('Updated Time: Newest First'),
               trailing: (!_isSortByDate && _isSortDescending)
-                  ? const Icon(Icons.check, color: Color(0xFF667EEA))
+                  ? Icon(Icons.check, color: _appPrimaryColor)
                   : null,
               onTap: () {
                 setState(() {
@@ -1409,10 +1421,10 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.arrow_upward, color: Color(0xFF667EEA)),
+              leading: Icon(Icons.arrow_upward, color: _appPrimaryColor),
               title: const Text('Updated Time: Oldest First'),
               trailing: (!_isSortByDate && !_isSortDescending)
-                  ? const Icon(Icons.check, color: Color(0xFF667EEA))
+                  ? Icon(Icons.check, color: _appPrimaryColor)
                   : null,
               onTap: () {
                 setState(() {
@@ -1503,8 +1515,8 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFF667EEA),
+            colorScheme: ColorScheme.light(
+              primary: _appPrimaryColor,
               onPrimary: Colors.white,
               onSurface: Colors.black87,
             ),
@@ -1530,10 +1542,12 @@ class _HomeScreenState extends State<HomeScreen> {
         if (parts.length >= 2) {
           int hour = int.parse(parts[0]);
           int min = int.parse(parts[1]);
-          if (controller.text.toLowerCase().contains('pm') && hour < 12)
+          if (controller.text.toLowerCase().contains('pm') && hour < 12) {
             hour += 12;
-          if (controller.text.toLowerCase().contains('am') && hour == 12)
+          }
+          if (controller.text.toLowerCase().contains('am') && hour == 12) {
             hour = 0;
+          }
           initialTime = TimeOfDay(hour: hour, minute: min);
         }
       }
@@ -1553,11 +1567,11 @@ class _HomeScreenState extends State<HomeScreen> {
               dayPeriodShape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
-              dialHandColor: const Color(0xFF667EEA),
+              dialHandColor: _appPrimaryColor,
               dialBackgroundColor: Colors.grey.shade50,
             ),
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFF667EEA),
+            colorScheme: ColorScheme.light(
+              primary: _appPrimaryColor,
               onPrimary: Colors.white,
               onSurface: Colors.black87,
             ),
@@ -1717,12 +1731,12 @@ class _HomeScreenState extends State<HomeScreen> {
                               Navigator.pop(context);
                               await _saveAddAndRefresh(newRecord);
                             },
-                            child: const Text(
+                            child: Text(
                               'Save',
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 16,
-                                color: Color(0xFF667EEA),
+                                color: _appPrimaryColor,
                               ),
                             ),
                           ),
@@ -1801,9 +1815,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                     DropdownButtonFormField<String>(
                                       initialValue: dropdownValue,
                                       dropdownColor: Colors.white,
-                                      icon: const Icon(
+                                      icon: Icon(
                                         Icons.arrow_drop_down_rounded,
-                                        color: Color(0xFF667EEA),
+                                        color: _appPrimaryColor,
                                       ),
                                       decoration: InputDecoration(
                                         labelText: col.toUpperCase(),
@@ -1824,8 +1838,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                           borderRadius: BorderRadius.circular(
                                             12,
                                           ),
-                                          borderSide: const BorderSide(
-                                            color: Color(0xFF667EEA),
+                                          borderSide: BorderSide(
+                                            color: _appPrimaryColor,
                                           ),
                                         ),
                                       ),
@@ -1877,8 +1891,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                               focusedBorder: OutlineInputBorder(
                                                 borderRadius:
                                                     BorderRadius.circular(12),
-                                                borderSide: const BorderSide(
-                                                  color: Color(0xFF667EEA),
+                                                borderSide: BorderSide(
+                                                  color: _appPrimaryColor,
                                                 ),
                                               ),
                                             ),
@@ -1947,14 +1961,14 @@ class _HomeScreenState extends State<HomeScreen> {
                                       color: Colors.grey,
                                     ),
                                     suffixIcon: isDate
-                                        ? const Icon(
+                                        ? Icon(
                                             Icons.calendar_today_outlined,
-                                            color: Color(0xFF667EEA),
+                                            color: _appPrimaryColor,
                                           )
                                         : (isTimeColumn
-                                              ? const Icon(
+                                              ? Icon(
                                                   Icons.access_time_rounded,
-                                                  color: Color(0xFF667EEA),
+                                                  color: _appPrimaryColor,
                                                 )
                                               : null),
                                     filled: true,
@@ -1967,8 +1981,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                     ),
                                     focusedBorder: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(12),
-                                      borderSide: const BorderSide(
-                                        color: Color(0xFF667EEA),
+                                      borderSide: BorderSide(
+                                        color: _appPrimaryColor,
                                       ),
                                     ),
                                   ),
@@ -2025,13 +2039,13 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ).copyWith(dividerColor: Colors.transparent),
                                   child: ExpansionTile(
                                     initiallyExpanded: false,
-                                    iconColor: const Color(0xFF667EEA),
+                                    iconColor: _appPrimaryColor,
                                     collapsedIconColor: Colors.grey.shade600,
-                                    title: const Text(
+                                    title: Text(
                                       'Advanced Details',
                                       style: TextStyle(
                                         fontWeight: FontWeight.bold,
-                                        color: Color(0xFF667EEA),
+                                        color: _appPrimaryColor,
                                       ),
                                     ),
                                     children: advancedColumns
@@ -2418,7 +2432,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     highlightColor: const Color(
                       0xFF667EEA,
                     ).withValues(alpha: 0.05),
-                    splashColor: const Color(0xFF667EEA).withValues(alpha: 0.1),
+                    splashColor: _appPrimaryColor.withValues(alpha: 0.1),
                     onTap: () {
                       Navigator.push(
                         context,
@@ -2472,9 +2486,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ).withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: const Icon(
+                                child: Icon(
                                   Icons.receipt_long_rounded,
-                                  color: Color(0xFF667EEA),
+                                  color: _appPrimaryColor,
                                   size: 16,
                                 ),
                               ),
@@ -2520,15 +2534,15 @@ class _HomeScreenState extends State<HomeScreen> {
                                       Icon(
                                         dateKeyLower == 'time' ? Icons.access_time_rounded : Icons.calendar_month_rounded,
                                         size: 13,
-                                        color: const Color(0xFF667EEA),
+                                        color: _appPrimaryColor,
                                       ),
                                       const SizedBox(width: 5),
                                       Text(
                                         '${dateKey.toUpperCase()}: $dateVal',
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontSize: 12,
                                           fontWeight: FontWeight.w900,
-                                          color: Color(0xFF667EEA),
+                                          color: _appPrimaryColor,
                                           letterSpacing: 0.2,
                                         ),
                                       ),
@@ -2603,7 +2617,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       style: TextStyle(
                                         fontSize: 9,
                                         color: isHighlight
-                                            ? const Color(0xFF667EEA)
+                                            ? _appPrimaryColor
                                             : Colors.grey.shade500,
                                         fontWeight: FontWeight.bold,
                                         letterSpacing: 0.5,
@@ -2618,7 +2632,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                             ? FontWeight.w900
                                             : FontWeight.w700,
                                         color: isHighlight
-                                            ? const Color(0xFF667EEA)
+                                            ? _appPrimaryColor
                                             : const Color(0xFF2D3748),
                                       ),
                                     ),
@@ -2653,9 +2667,27 @@ class _HomeScreenState extends State<HomeScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              // Edit and delete icons are hidden as requested.
-                              ...(() {
-                                String itemTitle = 'Unknown Item';
+                              if (_getSheetToFetch().trim().toUpperCase() != 'STORE _MATERIAL_STOCK _LIST')
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (_canWrite)
+                                      IconButton(
+                                        icon: const Icon(Icons.edit_outlined),
+                                        color: Colors.blueAccent,
+                                        onPressed: () => _showEditSheet(item),
+                                      ),
+                                    if (_canDelete)
+                                      IconButton(
+                                        icon: const Icon(Icons.delete_outline),
+                                        color: Colors.redAccent,
+                                        onPressed: () => _confirmDelete(item),
+                                      ),
+                                  ],
+                                ),
+                              if (_getSheetToFetch().trim().toUpperCase() == 'STORE _MATERIAL_STOCK _LIST')
+                                ...(() {
+                                  String itemTitle = 'Unknown Item';
                                 String itemDesc = 'Unknown Description';
                                 String itemCategory = '';
                                 String itemStock = '1';
@@ -2711,7 +2743,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 }
 
                                 final cartItemIndex = _cartItems.indexWhere(
-                                  (c) => c['item'] == itemTitle,
+                                  (c) => c['index'] == index.toString(),
                                 );
                                 final isInCart = cartItemIndex != -1;
                                 final currentQty = isInCart
@@ -2918,6 +2950,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                               'maxStock': maxStock,
                                               'minStock': minStock,
                                               'rawItem': item,
+                                              'index': index.toString(),
                                             });
                                           });
                                           ScaffoldMessenger.of(
@@ -2953,7 +2986,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                               ? Colors.grey.withValues(
                                                   alpha: 0.15,
                                                 )
-                                              : const Color(0xFF667EEA),
+                                              : _appPrimaryColor,
                                           foregroundColor: isAddToCartDisabled
                                               ? Colors.grey.shade700
                                               : Colors.white,
@@ -3011,12 +3044,12 @@ class _HomeScreenState extends State<HomeScreen> {
         width: isSelected ? activeWidth : inactiveWidth,
         height: 55,
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF667EEA) : Colors.transparent,
+          color: isSelected ? _appPrimaryColor : Colors.transparent,
           borderRadius: BorderRadius.circular(27.5),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: const Color(0xFF667EEA).withValues(alpha: 0.4),
+                    color: _appPrimaryColor.withValues(alpha: 0.4),
                     blurRadius: 15,
                     spreadRadius: -2,
                     offset: const Offset(0, 6),
@@ -3024,8 +3057,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 ]
               : [],
           gradient: isSelected
-              ? const LinearGradient(
-                  colors: [Color(0xFF667EEA), Color(0xFF8B5CF6)],
+              ? LinearGradient(
+                  colors: [_appPrimaryColor, _appSecondaryColor],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 )
@@ -3139,37 +3172,10 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       extendBody: true, // Allows content to scroll behind the floating nav bar
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          showDialog(
-            context: context,
-            builder: (context) => InventoryCheckoutDialog(
-              cartItems: _cartItems,
-              onClearCart: () {
-                setState(() {
-                  _cartItems.clear();
-                });
-              },
-            ),
-          ).then((result) {
-            if (result == true) {
-              _fetchSheetData();
-            } else {
-              setState(() {});
-            }
-          });
-        },
-        icon: const Icon(Icons.shopping_cart_checkout, color: Colors.white),
-        label: Text(
-          'Issue Items (${_cartItems.length})',
-          style: const TextStyle(color: Colors.white),
-        ),
-        backgroundColor: const Color(0xFF3B82F6),
-      ),
       // ── BODY ──
       body: Stack(
         children: [
-          const AnimatedGradientBackground(),
+          AnimatedGradientBackground(primaryColor: _appPrimaryColor, secondaryColor: _appSecondaryColor),
           SafeArea(
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 350),
@@ -3530,9 +3536,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                                 color: Colors.grey,
                                                 fontSize: 14,
                                               ),
-                                              prefixIcon: const Icon(
+                                              prefixIcon: Icon(
                                                 Icons.search_rounded,
-                                                color: Color(0xFF667EEA),
+                                                color: _appPrimaryColor,
                                                 size: 20,
                                               ),
                                               suffixIcon:
@@ -3579,7 +3585,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                           padding: const EdgeInsets.all(14),
                                           decoration: BoxDecoration(
                                             color: _isSortByDate
-                                                ? const Color(0xFF667EEA)
+                                                ? _appPrimaryColor
                                                 : Colors.white,
                                             borderRadius: BorderRadius.circular(
                                               16,
@@ -3657,7 +3663,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                               ),
                                               color: _isSortByDate
                                                   ? Colors.white
-                                                  : const Color(0xFF667EEA),
+                                                  : _appPrimaryColor,
                                               size: 20,
                                             ),
                                           ),
@@ -3668,7 +3674,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ).animate().fadeIn(duration: 400.ms).slideY(begin: -0.1),
                               ),
                             // Add button
-                            if (_canWrite)
+                            if (_canWrite && _getSheetToFetch().trim().toUpperCase() != 'STORE _MATERIAL_STOCK _LIST')
                               SliverToBoxAdapter(
                                 child: Padding(
                                   padding: const EdgeInsets.fromLTRB(
@@ -3691,7 +3697,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       ),
                                     ),
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF667EEA),
+                                      backgroundColor: _appPrimaryColor,
                                       foregroundColor: Colors.white,
                                       padding: const EdgeInsets.symmetric(
                                         vertical: 14,
@@ -3746,6 +3752,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                   },
                                 ),
                               ),
+                            const SliverToBoxAdapter(
+                              child: SizedBox(height: 140), // Spacing for bottom bar
+                            ),
                           ],
                         ],
                       ),
@@ -3755,10 +3764,61 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       // ── BOTTOM NAV ──
-      bottomNavigationBar: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.only(left: 20, right: 20, bottom: 28),
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_currentIndex == 0 && _getSheetToFetch().trim().toUpperCase() == 'STORE _MATERIAL_STOCK _LIST')
+            Container(
+              width: double.infinity,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 4,
+                    offset: Offset(0, -2),
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => InventoryCheckoutDialog(
+                      cartItems: _cartItems,
+                      onClearCart: () {
+                        setState(() {
+                          _cartItems.clear();
+                        });
+                      },
+                    ),
+                  ).then((result) {
+                    if (result == true) {
+                      _fetchSheetData();
+                    } else {
+                      setState(() {});
+                    }
+                  });
+                },
+                icon: const Icon(Icons.shopping_cart_checkout, color: Colors.white),
+                label: Text(
+                  'Issue Items (${_cartItems.length})',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _appPrimaryColor,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 20, right: 20, bottom: 28, top: 16),
           child: Builder(
             builder: (context) {
               final width = MediaQuery.of(context).size.width;
@@ -3861,6 +3921,8 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ),
         ),
+      ),
+        ],
       ),
     );
   }
@@ -3999,7 +4061,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                         padding: const EdgeInsets.all(10),
                                         decoration: BoxDecoration(
                                           color: isSelected
-                                              ? const Color(0xFF667EEA)
+                                              ? _appPrimaryColor
                                               : Colors.grey.shade50,
                                           shape: BoxShape.circle,
                                         ),
@@ -4023,18 +4085,18 @@ class _HomeScreenState extends State<HomeScreen> {
                                                 ? FontWeight.w800
                                                 : FontWeight.w600,
                                             color: isSelected
-                                                ? const Color(0xFF667EEA)
+                                                ? _appPrimaryColor
                                                 : const Color(0xFF2D3748),
                                           ),
                                         ),
                                       ),
                                       if (isSelected)
-                                        const Text(
+                                        Text(
                                           'Active',
                                           style: TextStyle(
                                             fontSize: 12,
                                             fontWeight: FontWeight.bold,
-                                            color: Color(0xFF667EEA),
+                                            color: _appPrimaryColor,
                                           ),
                                         ).animate().fadeIn().scale(),
                                     ],
@@ -4060,7 +4122,10 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class AnimatedGradientBackground extends StatefulWidget {
-  const AnimatedGradientBackground({super.key});
+  final Color primaryColor;
+  final Color secondaryColor;
+
+  const AnimatedGradientBackground({super.key, required this.primaryColor, required this.secondaryColor});
 
   @override
   State<AnimatedGradientBackground> createState() =>
@@ -4109,7 +4174,7 @@ class _AnimatedGradientBackgroundState extends State<AnimatedGradientBackground>
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+                      color: widget.secondaryColor.withValues(alpha: 0.15),
                       blurRadius: 100,
                       spreadRadius: 80,
                     ),

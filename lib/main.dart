@@ -29,6 +29,7 @@ class ButterySmoothPageTransitionsBuilder extends PageTransitionsBuilder {
         ).chain(CurveTween(curve: Curves.easeOutCubic)),
       ),
       child: SlideTransition(
+      
         position: animation.drive(
           Tween(
             begin: const Offset(0.0, 0.04),

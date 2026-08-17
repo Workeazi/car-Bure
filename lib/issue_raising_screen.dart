@@ -352,8 +352,10 @@ class _IssueRaisingScreenState extends State<IssueRaisingScreen> {
 
                     final allIssues = snapshot.data!;
                     final myIssues = allIssues.where((issue) {
-                      final empId = issue['Employee ID']?.trim() ?? '';
-                      return empId == widget.loginId || empId == _employeeIdController.text.trim();
+                      final empIdKey = issue.keys.firstWhere((k) => k.replaceAll(' ', '').toLowerCase() == 'employeeid', orElse: () => '');
+                      final empId = empIdKey.isNotEmpty ? (issue[empIdKey]?.trim() ?? '') : '';
+                      return empId.toLowerCase() == widget.loginId.toLowerCase() || 
+                             empId.toLowerCase() == _employeeIdController.text.trim().toLowerCase();
                     }).toList().reversed.toList();
 
                     if (myIssues.isEmpty) {
@@ -375,12 +377,28 @@ class _IssueRaisingScreenState extends State<IssueRaisingScreen> {
                       separatorBuilder: (_, _) => const SizedBox(height: 16),
                       itemBuilder: (context, index) {
                         final issue = myIssues[index];
-                        final date = issue['Date'] ?? 'Unknown Date';
-                        final priority = issue['Priority'] ?? 'Normal';
-                        final problem = issue['Problem_text'] ?? 'No description';
-                        final status = issue['Status'] ?? 'Pending';
-                        final image = issue['Problem_Images'] ?? issue['PROBLEM_IMAGES'];
-                        final voice = issue['Problem_Voice-Message'];
+                        
+                        String _getVal(String key) {
+                          final match = issue.keys.firstWhere(
+                            (k) => k.toLowerCase().trim().replaceAll(' ', '') == key.toLowerCase().trim().replaceAll(' ', ''), 
+                            orElse: () => ''
+                          );
+                          return match.isNotEmpty ? (issue[match]?.toString() ?? '') : '';
+                        }
+
+                        final dateVal = _getVal('Date');
+                        final priorityVal = _getVal('Priority');
+                        final problemVal = _getVal('Problem_text');
+                        final statusVal = _getVal('Status');
+                        final imageVal = _getVal('Problem_Images');
+                        final voiceVal = _getVal('Problem_Voice-Message');
+
+                        final date = dateVal.isNotEmpty ? dateVal : 'Unknown Date';
+                        final priority = priorityVal.isNotEmpty ? priorityVal : 'Normal';
+                        final problem = problemVal.isNotEmpty ? problemVal : 'No description';
+                        final status = statusVal.isNotEmpty ? statusVal : 'Pending';
+                        final image = imageVal.isNotEmpty ? imageVal : null;
+                        final voice = voiceVal.isNotEmpty ? voiceVal : null;
 
                         Color statusColor = Colors.orange;
                         if (status.toLowerCase() == 'resolved') statusColor = Colors.green;

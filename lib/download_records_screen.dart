@@ -6,6 +6,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'widgets/aesthetic_loader.dart';
 
 class DownloadRecordsScreen extends StatefulWidget {
@@ -36,8 +37,8 @@ class _DownloadRecordsScreenState extends State<DownloadRecordsScreen> {
     final formats = [
       'd-MMM-yy', 'dd-MMM-yy', 'd-MMM-yyyy', 'dd-MMM-yyyy',
       'dd/MM/yyyy HH:mm:ss', 'dd/MM/yyyy', 'MM/dd/yyyy HH:mm:ss',
-      'MM/dd/yyyy', 'yyyy-MM-dd HH:mm:ss', 'yyyy-MM-dd',
-      'dd.MM.yyyy', 'dd-MM-yyyy', 'dd/MM/yy', 'd/M/yy'
+      'MM/dd/yyyy', 'dd.MM.yyyy', 'dd-MM-yyyy', 'dd/MM/yy', 'd/M/yy',
+      'yyyy-MM-dd HH:mm:ss', 'yyyy-MM-dd'
     ];
     for (final fmt in formats) {
       try {
@@ -336,7 +337,20 @@ class _DownloadRecordsScreenState extends State<DownloadRecordsScreen> {
       await file.writeAsBytes(await pdf.save());
 
       final xFile = XFile(file.path, mimeType: 'application/pdf');
-      await Share.shareXFiles([xFile], text: 'PDF Export');
+      try {
+        await Share.shareXFiles([xFile], text: 'PDF Export');
+      } catch (e) {
+        try {
+          final uri = Uri.file(file.path);
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri);
+          } else {
+            if (mounted) _showError('PDF saved at: ${file.path}');
+          }
+        } catch (_) {
+          if (mounted) _showError('PDF saved at: ${file.path}');
+        }
+      }
     } catch (e) {
       if (mounted) _showError('PDF Export failed: $e');
     }

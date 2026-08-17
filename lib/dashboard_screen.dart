@@ -43,10 +43,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       'dd/MM/yyyy',
       'MM/dd/yyyy HH:mm:ss',
       'MM/dd/yyyy',
-      'yyyy-MM-dd HH:mm:ss',
-      'yyyy-MM-dd',
       'dd.MM.yyyy',
       'dd-MM-yyyy',
+      'yyyy-MM-dd HH:mm:ss',
+      'yyyy-MM-dd',
     ];
 
     for (final fmt in formats) {
@@ -133,7 +133,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         orElse: () => '',
       );
       final dateKey = item.keys.firstWhere(
-        (k) => k.trim().toLowerCase() == 'date',
+        (k) => k.trim().toLowerCase().replaceAll(' ', '') == 'date',
         orElse: () => '',
       );
 
@@ -219,7 +219,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (_startDate == null || _endDate == null) return true;
 
       final dateKey = item.keys.firstWhere(
-        (k) => k.toLowerCase() == 'date',
+        (k) => k.toLowerCase().trim().replaceAll(' ', '') == 'date',
         orElse: () => '',
       );
       if (dateKey.isEmpty) return false;
