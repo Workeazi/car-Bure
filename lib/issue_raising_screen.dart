@@ -378,7 +378,7 @@ class _IssueRaisingScreenState extends State<IssueRaisingScreen> {
                       itemBuilder: (context, index) {
                         final issue = myIssues[index];
                         
-                        String _getVal(String key) {
+                        String getVal(String key) {
                           final match = issue.keys.firstWhere(
                             (k) => k.toLowerCase().trim().replaceAll(' ', '') == key.toLowerCase().trim().replaceAll(' ', ''), 
                             orElse: () => ''
@@ -386,12 +386,12 @@ class _IssueRaisingScreenState extends State<IssueRaisingScreen> {
                           return match.isNotEmpty ? (issue[match]?.toString() ?? '') : '';
                         }
 
-                        final dateVal = _getVal('Date');
-                        final priorityVal = _getVal('Priority');
-                        final problemVal = _getVal('Problem_text');
-                        final statusVal = _getVal('Status');
-                        final imageVal = _getVal('Problem_Images');
-                        final voiceVal = _getVal('Problem_Voice-Message');
+                        final dateVal = getVal('Date');
+                        final priorityVal = getVal('Priority');
+                        final problemVal = getVal('Problem_text');
+                        final statusVal = getVal('Status');
+                        final imageVal = getVal('Problem_Images');
+                        final voiceVal = getVal('Problem_Voice-Message');
 
                         final date = dateVal.isNotEmpty ? dateVal : 'Unknown Date';
                         final priority = priorityVal.isNotEmpty ? priorityVal : 'Normal';
