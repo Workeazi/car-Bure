@@ -5,7 +5,7 @@ class GoogleSheetsService {
   static String spreadsheetId = '1lkImcQTYrsKBc4eafO6AOyRqlqhXTXnn40gYb4B5jzM';
 
   // For production, replace this with your deployed backend URL.
-  static const String baseUrl = 'https://workeazi-backend.onrender.com';
+  static const String baseUrl = 'https://curbure-backend.workeazi.com';
 
   // Returns null on success, error message on failure
   static Future<String?> editRow({
